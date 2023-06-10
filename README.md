@@ -3,18 +3,18 @@ This is an id tech 3 bsp entity editor. It can render opened bsp files with vert
 
 ## Viewport Controlls:
 
- W - Move camera forward
- A - Move camera to the left
- S - Move camera backwards
- D - Move camera to the right
- SPACE - Move camera upwards
- C - Move camera downwards
- LMC - Select Object under the cursor
- RMC Hold and Drag - Rotate view
- Mouse Scrolling - Move camera forwards or backwards
- H - Hide currently selected entity
- Alt-H - Unhide all entities
- ESC - Deselect entity
+ W - Move camera forward<br />
+ A - Move camera to the left<br />
+ S - Move camera backwards<br />
+ D - Move camera to the right<br />
+ SPACE - Move camera upwards<br />
+ C - Move camera downwards<br />
+ LMC - Select Object under the cursor<br />
+ RMC Hold and Drag - Rotate view<br />
+ Mouse Scrolling - Move camera forwards or backwards<br />
+ H - Hide currently selected entity<br />
+ Alt-H - Unhide all entities<br />
+ ESC - Deselect entity<br />
 
 ## Screenshot
 ![Screenshot](https://github.com/SomaZ/BSP-Entitiy-Edit/blob/main/screenshot/bsp_entity_edit.JPG?raw=true)
