@@ -1,4 +1,4 @@
 [submodule "pyidtech3lib"]
 	path = pyidtech3lib
 	url = https://github.com/SomaZ/pyidtech3lib.git
-	branch = submodule_
+	branch = submodule
