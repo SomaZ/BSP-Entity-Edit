@@ -153,12 +153,11 @@ class OpenGLMesh():
 		GL.glDisableVertexAttribArray(2)
 		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, 0)
 		GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, 0)
-		print("created mesh			")
-		
+
+
 	def __del__(self):
 		GL.glDeleteVertexArrays(1, [self.vertex_array_object])
-		GL.glDeleteBuffers(1, [self.vertex_buffer])
-		print("deleted mesh			 ")
+		GL.glDeleteBuffers(4, [self.vertex_buffer, self.index_buffer, self.normal_buffer, self.color_buffer])
 		
 		
 box_verts = ((-8.0, -8.0, -8.0),
