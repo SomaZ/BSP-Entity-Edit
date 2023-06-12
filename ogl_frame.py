@@ -190,7 +190,7 @@ class AppOgl(OpenGLFrame):
 		
 	def redraw(self):
 		if self.render_fbo is None:
-			self.render_fbo = FBO(self.width, self.height)
+			self.render_fbo = FBO(self.width, self.height, 4)
 			
 		if self.is_picking:
 			GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.pick_fbo.bind)

@@ -18,15 +18,17 @@ class FBO():
 		self.color_rbo = GL.glGenRenderbuffers(1)
 		GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, self.color_rbo)
 		if multisample > 0:
-			GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER, 4, GL.GL_RGBA8, width, height)
+			GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER, multisample, GL.GL_RGBA8, width, height)
 		else:
 			GL.glRenderbufferStorage(GL.GL_RENDERBUFFER, GL.GL_RGBA8, width, height)
 		GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, 0)
 		
 		#self.line_rbo = GL.glGenRenderbuffers(1)
 		#GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, self.line_rbo)
-		#GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER, 4, GL.GL_RGBA8, width, height)
-		#GL.glRenderbufferStorage(GL.GL_RENDERBUFFER, GL.GL_RGBA8, width, height)
+		#if multisample > 0:
+		#	GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER, multisample, GL.GL_RGBA8, width, height)
+		#else:
+		#	GL.glRenderbufferStorage(GL.GL_RENDERBUFFER, GL.GL_RGBA8, width, height)
 		#GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, 0)
 		
 		GL.glFramebufferRenderbuffer(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_STENCIL_ATTACHMENT, GL.GL_RENDERBUFFER, self.depth_rbo)
