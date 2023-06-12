@@ -247,7 +247,7 @@ class AppOgl(OpenGLFrame):
 		GL.glUniformMatrix4fv(shader.uniform_loc["u_proj_mat"], 1, GL.GL_FALSE, numpy.transpose(p))
 
 
-	def add_bsp_object(self, name, bsp_object):
+	def add_gl_object(self, name, bsp_object):
 		if bsp_object is None:
 			return
 		mesh = None
@@ -310,18 +310,9 @@ class AppOgl(OpenGLFrame):
 		
 		mode = GL.GL_TRIANGLES
 		for surface in indices:
-			if len(surface) > 4:
+			if len(surface) > 3:
 				mode = GL.GL_TRIANGLE_FAN
 		for surface in indices:
-			if len(surface) == 4 and mode != GL.GL_TRIANGLE_FAN:
-				new_indices.append(surface[0])
-				new_indices.append(surface[2])
-				new_indices.append(surface[1])
-				
-				new_indices.append(surface[2])
-				new_indices.append(surface[0])
-				new_indices.append(surface[3])
-				continue
 			for index in surface:
 				new_indices.append(index)
 			if mode == GL.GL_TRIANGLE_FAN:
@@ -360,6 +351,24 @@ class AppOgl(OpenGLFrame):
 				)
 			)
 		self.opengl_meshes[name].render_type = mode
+		
+	def add_bsp_models(self, bsp_models):
+		for index, mesh in enumerate(bsp_models):
+			blend = None
+			if mesh.vertex_colors.get("Color") is None:
+				vcolors = [(0.0, 255.0, 0.0, 63.0) for i in range(len(mesh.positions.get_indexed()))]
+				blend = "ADD"
+			else:
+				vcolors = mesh.vertex_colors["Color"].get_indexed()
+
+			self.add_bsp_mesh(
+				mesh.name,
+				mesh.positions.get_indexed(),
+				mesh.indices,
+				vcolors,
+				mesh.vertex_normals.get_indexed(),
+				blend
+				)
 		
 	def clear_objects(self):
 		self.opengl_objects.clear()	

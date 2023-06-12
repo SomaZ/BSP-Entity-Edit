@@ -104,39 +104,18 @@ class File():
 		if f.name.endswith(".bsp"):
 			vfs = Q3VFS()
 			vfs.build_index()
-			
-			surface_types = (Surface_Type.BRUSH |
-                             Surface_Type.PLANAR |
-                             Surface_Type.PATCH |
-                             Surface_Type.TRISOUP |
-                             Surface_Type.FAKK_TERRAIN)
 
 			import_settings = Import_Settings(
 				file=self.filename,
-				surface_types=surface_types,
+				surface_types=Surface_Type.ALL,
 				subdivisions=0,
 				preset=Preset.EDITING.value
 			)
 
 			bsp = BSP(vfs, import_settings)
 			
-			bsp.lightmap_size = bsp.compute_packed_lightmap_size()
-			
 			self.gl.clear_meshes()
-			for index, mesh in enumerate(bsp.get_bsp_models()):
-				blend = None
-				if mesh.vertex_colors.get("Color") is None:
-					vcolors = [(0.0, 255.0, 0.0, 63.0) for i in range(len(mesh.positions.get_indexed()))]
-					blend = "ADD"
-				else:
-					vcolors = mesh.vertex_colors["Color"].get_indexed()
-				self.gl.add_bsp_mesh(
-					mesh.name,
-					mesh.positions.get_indexed(),
-					mesh.indices,
-					vcolors,
-					mesh.vertex_normals.get_indexed(),
-					blend)
+			self.gl.add_bsp_models(bsp.get_bsp_models())
 			
 			lump = bsp.lumps["entities"]
 			stringdata = []
@@ -170,7 +149,7 @@ class File():
 		self.gl.clear_objects()
 		bsp_objects = self.bsp.get_bsp_entity_objects()
 		for object_name in bsp_objects:
-			self.gl.add_bsp_object(
+			self.gl.add_gl_object(
 				object_name,
 				bsp_objects[object_name]
 			)

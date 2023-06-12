@@ -120,7 +120,7 @@ class OpenGLMesh():
 		else:
 			vs = numpy.array([1.0 for i in range(self.num_vertices * 4)])
 		GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs), vs, GL.GL_STATIC_DRAW)	
-		# Describe the position data layout in the buffer
+		# Describe the color data layout in the buffer
 		GL.glEnableVertexAttribArray(1)
 		GL.glVertexAttribPointer(1, 4, GL.GL_UNSIGNED_BYTE, True,
 								 0, ctypes.c_void_p(0))
@@ -214,12 +214,12 @@ box_normals = ((-0.33333333, -0.33333333, -0.33333333),
          (0.33333333, 0.33333333, -0.33333333),
          (0.33333333, 0.33333333, 0.33333333))
 
-box_indices = ((0, 1, 3, 2),
-         (2, 3, 7, 6),
-         (6, 7, 5, 4),
-         (4, 5, 1, 0),
-         (2, 6, 4, 0),
-         (7, 3, 1, 5))
+box_indices = ((2, 3, 1, 0),
+         (6, 7, 3, 2),
+         (4, 5, 7, 6),
+         (0, 1, 5, 4),
+         (0, 4, 6, 2),
+         (5, 1, 3, 7))
 
 if __name__ == "__main__":
 	print("Please run 'main.py'")

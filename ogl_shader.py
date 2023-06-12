@@ -39,7 +39,7 @@ void main()
 	vec3 color = mix(v_color.rgb, u_color.rgb, u_color.a);
 	
 	vec3 n = normalize(v_normal.xyz);
-	float shade = dot(vec3(.5, 0.0, -.5), -n) * 0.15 + 0.85;
+	float shade = clamp(dot(vec3(.5, 0.0, -.5), -n) * 0.15, -0.15, 0.15) + 0.85;
 	
 	out_color.rgb = clamp(color * shade, 0.0, 1.0);
 	out_color.a = v_color.a;
