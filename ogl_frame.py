@@ -53,7 +53,9 @@ def compileShader(source, shaderType):
 vertex_shader = """#version 150 
 in vec3 position;
 in vec4 color;
+in vec3 vertex_normal;
 out vec4 vertex_color;
+out vec3 normal;
 uniform mat4 proj;
 uniform mat4 view;
 uniform mat4 model;
@@ -62,19 +64,22 @@ void main()
    gl_Position = proj*view*model*(vec4(position, 1.0));
    gl_PointSize = 4./(0.5 + length( position ));
    vertex_color = color; //vec3( position.x/2+.5, position.y/2+.5, position.z/2+.5);
+   normal = mat3(model)*vertex_normal;
 }
 """
 
 fragment_shader = """#version 150
 in vec4 vertex_color;
-
+in vec3 normal;
 uniform vec4 u_color;
 
 out vec4 out_color;
 //out vec4 out_line;
 void main()
 {
-	out_color.rgb = mix(vertex_color.rgb, u_color.rgb, u_color.a);
+	vec3 n = normalize(normal.xyz);
+	vec3 color = mix(vertex_color.rgb, u_color.rgb, u_color.a);
+	out_color.rgb = color + clamp(vertex_color.rgb * (74.0 / 255.0) * dot(vec3(.5, 0.0, -.5), n), -(74.0 / 255.0), (74.0 / 255.0));
 	out_color.a = vertex_color.a;
 	//out_color = vec4(vertex_color * u_color);
 	//out_line = line;
@@ -83,7 +88,7 @@ void main()
 
 pick_fragment_shader = """#version 150
 in vec4 vertex_color;
-
+in vec3 normal;
 uniform vec4 line;
 
 out vec4 out_color;
@@ -245,6 +250,9 @@ class AppOgl(OpenGLFrame):
 		GL.glBindVertexArray(0)
 		GL.glUseProgram(0)
 		GL.glRasterPos2f(-0.99, -0.99)
+		GL.glDisable(GL.GL_BLEND)
+		GL.glEnable(GL.GL_CULL_FACE)
+		GL.glDepthMask (GL.GL_TRUE)
 		
 		if not self.is_picking:
 			GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0);
@@ -379,7 +387,7 @@ class AppOgl(OpenGLFrame):
 			
 			mesh = self.opengl_meshes.get(new_mesh_name)
 			if mesh is None:
-				self.add_bsp_mesh(new_mesh_name, box_verts, box_indices, colors)
+				self.add_bsp_mesh(new_mesh_name, box_verts, box_indices, colors, box_normals)
 				mesh = self.opengl_meshes.get(new_mesh_name)
 			
 		if bsp_object.mesh_name is not None and bsp_object.mesh_name.startswith("*"):
@@ -403,7 +411,7 @@ class AppOgl(OpenGLFrame):
 		
 		self.opengl_objects.append(new_object)
 		
-	def add_bsp_mesh(self, name, vertices, indices=None, colors=None, blend = None, tc0=None, tc1=None):
+	def add_bsp_mesh(self, name, vertices, indices=None, colors=None, normals = None, blend = None, tc0=None, tc1=None):
 		new_indices = []
 		
 		mode = GL.GL_TRIANGLES
@@ -432,16 +440,22 @@ class AppOgl(OpenGLFrame):
 			new_positions.append(vert[2])
 		new_colors = []
 		for color in colors:
-			new_colors.append(color[0])
-			new_colors.append(color[1])
-			new_colors.append(color[2])
+			new_colors.append(int(color[0] * (181.0 / 255.0)) + 37)
+			new_colors.append(int(color[1] * (181.0 / 255.0)) + 37)
+			new_colors.append(int(color[2] * (181.0 / 255.0)) + 37)
 			new_colors.append(color[3])
-			
+		new_normals = []
+		for normal in normals:
+			new_normals.append(normal[0])
+			new_normals.append(normal[1])
+			new_normals.append(normal[2])
+
 		self.opengl_meshes[name] = (
 			OpenGLMesh(
 				numpy.array(new_positions).astype(numpy.float32),
 				numpy.array(new_indices).astype(numpy.uint32),
 				numpy.array(new_colors).astype(numpy.uint8),
+				numpy.array(new_normals).astype(numpy.float32),
 				blend
 				)
 			)

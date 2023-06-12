@@ -135,6 +135,7 @@ class File():
 					mesh.positions.get_indexed(),
 					mesh.indices,
 					vcolors,
+					mesh.vertex_normals.get_indexed(),
 					blend)
 			
 			lump = bsp.lumps["entities"]

@@ -86,7 +86,7 @@ class OpenGLObject():
 		
 	
 class OpenGLMesh():
-	def __init__(self, positions, indices = None, colors = None, blend = None):
+	def __init__(self, positions, indices = None, colors = None, normals = None, blend = None):
 		if positions is None:
 			raise Exception("Could not create OpenGL Object")
 			
@@ -112,16 +112,32 @@ class OpenGLMesh():
 		GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, False,
 								 0, ctypes.c_void_p(0))
 								 
-		if colors is not None:
-			self.color_buffer = GL.glGenBuffers(1)
-			GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.color_buffer)		
-			vs = colors
-			GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs), vs, GL.GL_STATIC_DRAW)	
-			# Describe the position data layout in the buffer
-			GL.glEnableVertexAttribArray(1)
-			GL.glVertexAttribPointer(1, 4, GL.GL_UNSIGNED_BYTE, True,
-									 0, ctypes.c_void_p(0))
 		
+		self.color_buffer = GL.glGenBuffers(1)
+		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.color_buffer)
+		if colors is not None:
+			vs = colors
+		else:
+			vs = numpy.array([1.0 for i in range(self.num_vertices * 4)])
+		GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs), vs, GL.GL_STATIC_DRAW)	
+		# Describe the position data layout in the buffer
+		GL.glEnableVertexAttribArray(1)
+		GL.glVertexAttribPointer(1, 4, GL.GL_UNSIGNED_BYTE, True,
+								 0, ctypes.c_void_p(0))
+									 
+		
+		self.normal_buffer = GL.glGenBuffers(1)
+		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.normal_buffer)
+		if normals is not None:
+			vs = normals
+		else:
+			vs = numpy.array([0.0 for i in range(self.num_vertices * 3)])
+		GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs) * ctypes.sizeof(ctypes.c_float), vs, GL.GL_STATIC_DRAW)
+		# Describe the normals data layout in the buffer
+		GL.glEnableVertexAttribArray(2)
+		GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, False,
+								 0, ctypes.c_void_p(0))
+				
 		if indices is not None:
 			# Generate buffers to hold our indices
 			self.index_buffer = GL.glGenBuffers(1)
@@ -133,6 +149,8 @@ class OpenGLMesh():
 		# Unbind the VAO first (Important)
 		GL.glBindVertexArray(0)
 		GL.glDisableVertexAttribArray(0)
+		GL.glDisableVertexAttribArray(1)
+		GL.glDisableVertexAttribArray(2)
 		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, 0)
 		GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, 0)
 		print("created mesh			")
@@ -187,6 +205,15 @@ green_box_colors = ((10.0, 255.0, 10.0, 255.0),
          (10.0, 10.0, 10.0, 255.0),
          (10.0, 10.0, 10.0, 255.0),
          (10.0, 10.0, 10.0, 255.0))
+		 
+box_normals = ((-0.33333333, -0.33333333, -0.33333333),
+         (-0.33333333, -0.33333333, 0.33333333),
+         (-0.33333333, 0.33333333, -0.33333333),
+         (-0.33333333, 0.33333333, 0.33333333),
+         (0.33333333, -0.33333333, -0.33333333),
+         (0.33333333, -0.33333333, 0.33333333),
+         (0.33333333, 0.33333333, -0.33333333),
+         (0.33333333, 0.33333333, 0.33333333))
 
 box_indices = ((0, 1, 3, 2),
          (2, 3, 7, 6),
