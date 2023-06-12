@@ -17,4 +17,4 @@ This is an id tech 3 bsp entity editor. It can render opened bsp files with vert
  ESC - Deselect entity<br />
 
 ## Screenshot
-![Screenshot](https://github.com/SomaZ/BSP-Entitiy-Edit/blob/main/screenshot/bsp_entity_edit.JPG?raw=true)
+![Screenshot](https://github.com/SomaZ/BSP-Entity-Edit/blob/main/screenshot/bsp_entity_edit.JPG?raw=true)
