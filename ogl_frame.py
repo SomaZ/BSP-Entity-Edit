@@ -1,6 +1,6 @@
 from tkinter import *
 from OpenGL import GL
-import OpenGL.GL.shaders
+
 import numpy
 import ctypes
 import types
@@ -8,96 +8,11 @@ import sys
 from pyopengltk import OpenGLFrame
 from ogl_objects import *
 from ogl_fbo import FBO
+import ogl_shader
 if sys.version_info[0] > 2:
 	import tkinter as tk
 else:
 	import Tkinter as tk
-
-# Avoiding glitches in pyopengl-3.0.x and python3.4
-def bytestr(s):
-	return s.encode("utf-8") + b"\000"
-
-
-# Avoiding glitches in pyopengl-3.0.x and python3.4
-def compileShader(source, shaderType):
-	"""
-	Compile shader source of given type
-		source -- GLSL source-code for the shader
-	shaderType -- GLenum GL_VERTEX_SHADER, GL_FRAGMENT_SHADER, etc,
-		returns GLuint compiled shader reference
-	raises RuntimeError when a compilation failure occurs
-	"""
-	if isinstance(source, str):
-		source = [source]
-	elif isinstance(source, bytes):
-		source = [source.decode('utf-8')]
-
-	shader = GL.glCreateShader(shaderType)
-	GL.glShaderSource(shader, source)
-	GL.glCompileShader(shader)
-	result = GL.glGetShaderiv(shader, GL.GL_COMPILE_STATUS)
-	if not(result):
-		# TODO: this will be wrong if the user has
-		# disabled traditional unpacking array support.
-		raise RuntimeError(
-			"""Shader compile failure (%s): %s""" % (
-				result,
-				GL.glGetShaderInfoLog(shader),
-			),
-			source,
-			shaderType,
-		)
-	return shader
-
-
-vertex_shader = """#version 150 
-in vec3 position;
-in vec4 color;
-in vec3 vertex_normal;
-out vec4 vertex_color;
-out vec3 normal;
-uniform mat4 proj;
-uniform mat4 view;
-uniform mat4 model;
-void main()
-{
-   gl_Position = proj*view*model*(vec4(position, 1.0));
-   gl_PointSize = 4./(0.5 + length( position ));
-   vertex_color = color; //vec3( position.x/2+.5, position.y/2+.5, position.z/2+.5);
-   normal = mat3(model)*vertex_normal;
-}
-"""
-
-fragment_shader = """#version 150
-in vec4 vertex_color;
-in vec3 normal;
-uniform vec4 u_color;
-
-out vec4 out_color;
-//out vec4 out_line;
-void main()
-{
-	vec3 n = normalize(normal.xyz);
-	vec3 color = mix(vertex_color.rgb, u_color.rgb, u_color.a);
-	out_color.rgb = color + clamp(vertex_color.rgb * (74.0 / 255.0) * dot(vec3(.5, 0.0, -.5), n), -(74.0 / 255.0), (74.0 / 255.0));
-	out_color.a = vertex_color.a;
-	//out_color = vec4(vertex_color * u_color);
-	//out_line = line;
-}
-"""
-
-pick_fragment_shader = """#version 150
-in vec4 vertex_color;
-in vec3 normal;
-uniform vec4 line;
-
-out vec4 out_color;
-
-void main()
-{
-   out_color = line;
-}
-"""
 
 
 PRIMITIVE_RESTART = 65536204;
@@ -149,6 +64,7 @@ class AppOgl(OpenGLFrame):
 	
 	opengl_meshes = {}
 	opengl_objects = []
+	
 	def initgl(self):
 		GL.glClearColor(0.15, 0.15, 0.15, 1.0)
 		
@@ -156,25 +72,10 @@ class AppOgl(OpenGLFrame):
 		GL.glEnable(GL.GL_DEPTH_TEST)
 		
 		GL.glEnable(GL.GL_PROGRAM_POINT_SIZE)
-		if not hasattr(self, "shader"):
-			self.shader = OpenGL.GL.shaders.compileProgram(
-				compileShader(vertex_shader, GL.GL_VERTEX_SHADER),
-				compileShader(fragment_shader, GL.GL_FRAGMENT_SHADER)
-				)
-			self.proj = GL.glGetUniformLocation(self.shader, bytestr('proj'))
-			self.view = GL.glGetUniformLocation(self.shader, bytestr('view'))
-			self.model = GL.glGetUniformLocation(self.shader, bytestr('model'))
-			self.u_color = GL.glGetUniformLocation(self.shader, bytestr('u_color'))
-			
-		if not hasattr(self, "pick_shader"):
-			self.pick_shader = OpenGL.GL.shaders.compileProgram(
-				compileShader(vertex_shader, GL.GL_VERTEX_SHADER),
-				compileShader(pick_fragment_shader, GL.GL_FRAGMENT_SHADER)
-				)
-			self.pick_proj = GL.glGetUniformLocation(self.pick_shader, bytestr('proj'))
-			self.pick_view = GL.glGetUniformLocation(self.pick_shader, bytestr('view'))
-			self.pick_model = GL.glGetUniformLocation(self.pick_shader, bytestr('model'))
-			self.u_line = GL.glGetUniformLocation(self.pick_shader, bytestr('line'))
+		if not hasattr(self, "shaders"):
+			self.shaders = {}
+			for shader_name, vertex_shader, fragment_shader in ogl_shader.SHADER_LIST:
+				self.shaders[shader_name] = ogl_shader.SHADER(vertex_shader, fragment_shader)
 		
 		GL.glEnable(GL.GL_CULL_FACE)
 		GL.glCullFace(GL.GL_FRONT)
@@ -196,18 +97,20 @@ class AppOgl(OpenGLFrame):
 	def redraw(self):
 		if self.render_fbo is None:
 			self.render_fbo = FBO(self.width, self.height, 4)
-			
+
+
+		shader = self.shaders["Vertex_Color"]
+		fbo = self.render_fbo.bind
 		if self.is_picking:
-			GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.pick_fbo.bind)
-			GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-			GL.glUseProgram(self.pick_shader)
-		else:
-			GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.render_fbo.bind)
-			GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-			GL.glUseProgram(self.shader)
-		
-		self.set_view()
-		self.set_projection(100.0)
+			fbo = self.pick_fbo.bind
+			shader = self.shaders["Pick_Object"]
+			
+		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, fbo)
+		GL.glUseProgram(shader.program)
+		#clear buffer
+		GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+		self.set_view(shader)
+		self.set_projection(shader, 100.0)
 		
 		GL.glDisable(GL.GL_BLEND)
 		GL.glEnable(GL.GL_CULL_FACE)
@@ -232,17 +135,14 @@ class AppOgl(OpenGLFrame):
 				GL.glDepthMask (GL.GL_TRUE)
 				current_blend = obj.mesh.blend
 				
-			if self.is_picking:
-				GL.glUniformMatrix4fv(self.pick_model, 1, GL.GL_FALSE, obj.modelMatrix)
-				GL.glUniform4f(self.u_line, *obj.encoded_object_index);
-			else:
-				GL.glUniformMatrix4fv(self.model, 1, GL.GL_FALSE, obj.modelMatrix)
+			GL.glUniformMatrix4fv(shader.uniform_loc["u_model_mat"], 1, GL.GL_FALSE, obj.modelMatrix)
+			if (shader.uniform_loc["u_line"] != -1):
+				GL.glUniform4f(shader.uniform_loc["u_line"], *obj.encoded_object_index);
 			
 			if obj.selected and not self.is_picking:
-				GL.glUniform4f(self.u_color, 1., .01, 1., 1.);
+				GL.glUniform4f(shader.uniform_loc["u_color"], 1., .01, 1., 1.);
 				obj.draw()
-				#obj.draw(GL.GL_LINES)
-				GL.glUniform4f(self.u_color, 1., 1., 1., 0.);
+				GL.glUniform4f(shader.uniform_loc["u_color"], 1., 1., 1., 0.);
 			else:
 				obj.draw()
 
@@ -314,7 +214,7 @@ class AppOgl(OpenGLFrame):
 		for obj in self.opengl_objects:
 			obj.hidden = False
 
-	def set_view(self):
+	def set_view(self, shader):
 		F = normal_from_polar(self.rotation[1], self.rotation[2])
 		self.forward_vec = normalize(F)
 		U = (0.0, 0.0, 1.0)
@@ -325,13 +225,10 @@ class AppOgl(OpenGLFrame):
 			self.right_vec,
 			self.up_vec,
 			self.origin)
-		if self.is_picking:
-			GL.glUniformMatrix4fv(self.pick_view, 1, GL.GL_FALSE, numpy.transpose(v))
-		else:
-			GL.glUniformMatrix4fv(self.view, 1, GL.GL_FALSE, numpy.transpose(v))
+		GL.glUniformMatrix4fv(shader.uniform_loc["u_view_mat"], 1, GL.GL_FALSE, numpy.transpose(v))
 
 
-	def set_projection(self, fov_y):
+	def set_projection(self, shader, fov_y):
 		znear = 4.
 		zfar = 40000.
 		depth = zfar - znear
@@ -347,10 +244,7 @@ class AppOgl(OpenGLFrame):
 			),
 			numpy.float32
 		)
-		if self.is_picking:
-			GL.glUniformMatrix4fv(self.pick_proj, 1, GL.GL_FALSE, numpy.transpose(p))
-		else:
-			GL.glUniformMatrix4fv(self.proj, 1, GL.GL_FALSE, numpy.transpose(p))
+		GL.glUniformMatrix4fv(shader.uniform_loc["u_proj_mat"], 1, GL.GL_FALSE, numpy.transpose(p))
 
 
 	def add_bsp_object(self, name, bsp_object):
@@ -440,9 +334,15 @@ class AppOgl(OpenGLFrame):
 			new_positions.append(vert[2])
 		new_colors = []
 		for color in colors:
-			new_colors.append(int(color[0] * (181.0 / 255.0)) + 37)
-			new_colors.append(int(color[1] * (181.0 / 255.0)) + 37)
-			new_colors.append(int(color[2] * (181.0 / 255.0)) + 37)
+			if (color[0] + color[1] + color[2]) < 30:
+				new_colors.append(color[0] + 30)
+				new_colors.append(color[1] + 30)
+				new_colors.append(color[2] + 30)
+				new_colors.append(color[3])
+				continue
+			new_colors.append(color[0])
+			new_colors.append(color[1])
+			new_colors.append(color[2])
 			new_colors.append(color[3])
 		new_normals = []
 		for normal in normals:
