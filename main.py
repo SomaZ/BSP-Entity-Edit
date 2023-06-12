@@ -1,5 +1,6 @@
 # import statements
 from tkinter import *
+from tkinter import ttk
 from tkinter.filedialog import *
 from tkinter.messagebox import *
 from tkinter.font import Font
@@ -79,8 +80,11 @@ def main():
 	root.geometry("1200x600")
 	root.minsize(width=800, height=400)
 	
-	# frame left  
-	left_frame = LabelFrame(root, text="Entitys", padx=5, pady=5)
+	# frame left
+	tabControl = ttk.Notebook(root)
+	
+	#left_frame = LabelFrame(root, text="Entitys", padx=5, pady=5)
+	left_frame = Frame(root, padx=5, pady=5)
 	text_frame = Frame(left_frame, width = 1000, padx=0, pady=0)
 	text = CustomText(text_frame, state='normal', wrap='word', pady=2, padx=3, undo=True)
 	linenumbers = TextLineNumbers(text_frame, width=30)
@@ -91,6 +95,18 @@ def main():
 	text.bind("<Configure>", linenumbers.on_txt_change)
 	text.focus_set()
 	
+	#shader_frame = LabelFrame(root, text="Shaders", padx=5, pady=5)
+	shader_frame = Frame(root, padx=5, pady=5)
+	shader_scroll = Scrollbar(shader_frame) 
+	shader_scroll.pack(side = RIGHT, fill = Y)
+	shader_listbox = Listbox(shader_frame, yscrollcommand = shader_scroll.set)
+	shader_listbox.insert(1,"Bread")
+	shader_listbox.pack(side="left", fill=BOTH, expand=YES)
+	shader_scroll.config(command = shader_listbox.yview) 
+	
+	tabControl.add(left_frame, text="Entitys")
+	tabControl.add(shader_frame, text="Shaders")
+	
 	# frame right
 	right_frame = LabelFrame(root, text="Map Render", padx=5, pady=5)
 	model_frame = ogl_frame.main(right_frame, text)
@@ -100,14 +116,14 @@ def main():
 	menubar = Menu(root)
 
 	# adding our menus to the menubar
-	file_menu.main(root, text, menubar, model_frame, btn)
+	file_menu.main(root, text, menubar, model_frame, btn, shader_listbox)
 	edit_menu.main(root, text, menubar)
 	format_menu.main(root, text, menubar)
 	help_menu.main(root, text, menubar)
 	
 	text_frame.grid(column=0, row=0, sticky=(N, S, W), padx=1, pady=1)
 	btn.grid(column=0, row=1, sticky=(S, E, W), padx=1, pady=1)
-	left_frame.grid(column=0, row=0, sticky=(N, S, W), padx=1, pady=1)
+	tabControl.grid(column=0, row=0, sticky=(N, S, W), padx=1, pady=1)
 	right_frame.grid(column=1, row=0, sticky=(N, S, E), padx=1, pady=1)
 	model_frame.grid(column=0, row=0, sticky=(N, S, E, W), padx=1, pady=1)
 	
@@ -125,8 +141,8 @@ def main():
 	def leave(event):
 		model_frame.focus_set()
 		
-	text_frame.bind('<Enter>', enter)
-	text_frame.bind('<Leave>', leave)
+	text.bind('<Enter>', enter)
+	model_frame.bind('<Enter>', leave)
 	
 	# running the whole program
 	root.mainloop()

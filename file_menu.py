@@ -11,12 +11,13 @@ bsp_file_types = [("BSP files","*.bsp"), ("Entity files","*.ent")]
 # creating File
 class File():
 
-	def __init__(self, text, root, opengl_frame):
+	def __init__(self, text, root, opengl_frame, shader_frame):
 		self.filename = None
 		self.bsp = None
 		self.text = text
 		self.root = root
 		self.gl = opengl_frame
+		self.shaders = shader_frame
 
 	def saveFile(self):
 		if self.filename is None:
@@ -158,6 +159,7 @@ class File():
 		f.close()
 		
 		self.update_gl_entity_objects()
+		self.reload_shaders()
 		
 	def update_bsp_entity_lump(self):
 		t = self.text.get(0.0, END).rstrip()
@@ -177,6 +179,15 @@ class File():
 			return
 		self.update_bsp_entity_lump()
 		self.update_gl_entity_objects()
+		
+	def reload_shaders(self):
+		if self.bsp is None:
+			return
+			
+		self.shaders.delete(0, END)
+		
+		for shader in self.bsp.lumps["shaders"]:
+			self.shaders.insert(END, shader.name)
 
 	def quit(self):
 		entry = askyesno(title="Quit", message="Are you sure you want to quit?")
@@ -184,9 +195,9 @@ class File():
 			self.root.destroy()
 
 
-def main(root, text, menubar, opengl_frame, refresh_btn):
+def main(root, text, menubar, opengl_frame, refresh_btn, shader_frame):
 	filemenu = Menu(menubar)
-	objFile = File(text, root, opengl_frame)
+	objFile = File(text, root, opengl_frame, shader_frame)
 	filemenu.add_command(label="Open", command=objFile.openFile)
 	filemenu.add_command(label="Save", command=objFile.saveFile)
 	filemenu.add_command(label="Save As...", command=objFile.saveAs)
