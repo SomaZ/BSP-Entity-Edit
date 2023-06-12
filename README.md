@@ -1,4 +1,4 @@
-# BSP Entitiy Edit
+# BSP Entity Edit
 This is an id tech 3 bsp entity editor. It can render opened bsp files with vertex colors, you can pick entities in the render with a simple click, you can edit the entity string, you can save the bsp file afterwards or choose to save as .ent file instead. The preview is updated when you click the button under the viewport.
 
 ## Viewport Controlls:
