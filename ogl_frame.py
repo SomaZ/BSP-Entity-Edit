@@ -309,13 +309,17 @@ class AppOgl(OpenGLFrame):
 			)
 		new_object.new_line = int(bsp_object.custom_parameters["first_line"])
 		
-		object_index = len(self.opengl_objects)
-		r = (object_index & 0x000000FF) >>  0;
-		g = (object_index & 0x0000FF00) >>  8;
-		b = (object_index & 0x00FF0000) >> 16;
-		new_object.encoded_object_index = float(r)/255.0, float(g)/255.0, float(b)/255.0, 0.0
-		
-		self.opengl_objects.append(new_object)
+		if mesh.blend is None:
+			self.opengl_objects.insert(0, new_object)
+		else:
+			self.opengl_objects.append(new_object)
+			
+	def update_object_indexes(self):
+		for index, object in enumerate(self.opengl_objects):
+			r = (index & 0x000000FF) >>  0;
+			g = (index & 0x0000FF00) >>  8;
+			b = (index & 0x00FF0000) >> 16;
+			object.encoded_object_index = float(r)/255.0, float(g)/255.0, float(b)/255.0, 0.0
 		
 	def add_bsp_mesh(self, name, vertices, indices=None, colors=None, normals = None, blend = None, tc0=None, tc1=None):
 		new_indices = []

@@ -153,6 +153,7 @@ class File():
 				object_name,
 				bsp_objects[object_name]
 			)
+		self.gl.update_object_indexes()
 			
 	def reload_entities(self, *args):
 		if self.bsp is None:
