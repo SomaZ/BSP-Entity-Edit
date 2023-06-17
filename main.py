@@ -140,6 +140,7 @@ def main():
 
 	def enter(event):
 		text.focus_set()
+		model_frame.stop_movement()
 	def leave(event):
 		model_frame.focus_set()
 		

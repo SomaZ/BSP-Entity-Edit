@@ -53,6 +53,7 @@ def viewPolar( f, s, u, eye ):
 
 class AppOgl(OpenGLFrame):
 	button_center = (0, 0)
+	key_direction =numpy.array([0.0, 0.0, 0.0])
 	origin = numpy.array([0., 0., 0.])
 	rotation = [0, 0, numpy.deg2rad(90), 0]
 	forward_vec = numpy.array([0., 0., 0.])
@@ -97,7 +98,12 @@ class AppOgl(OpenGLFrame):
 		self.is_picking = False
 		
 	def redraw(self):
-
+	
+		self.origin += normalize(
+			self.forward_vec * self.key_direction[0] +
+			self.right_vec * self.key_direction[1] +
+			numpy.array([0.0, 0.0, 1.0]) * self.key_direction[2]
+			) * 30.0
 		shader = self.shaders["Vertex_Color"]
 		fbo = self.render_fbo.bind
 		if self.is_picking:
@@ -389,30 +395,42 @@ class AppOgl(OpenGLFrame):
 	def append(self, text):
 		self.text = text
 		
+	def stop_movement(self):
+		self.key_direction = numpy.array([0.0, 0.0, 0.0])
+
 def move_fwd(event):
-	event.widget.origin += 120. * event.widget.forward_vec
-	
+	event.widget.key_direction[0] = 1.0
+
 def move_lft(event):
-	event.widget.origin -= 120. * event.widget.right_vec
-	
+	event.widget.key_direction[1] = -1.0
+
 def move_rgt(event):
-	event.widget.origin += 120. * event.widget.right_vec
-	
+	event.widget.key_direction[1] = +1.0
+
 def move_bck(event):
-	event.widget.origin -= 120. * event.widget.forward_vec
-   
+	event.widget.key_direction[0] = -1.0
+
 def move_up(event):
-	event.widget.origin += 120. * numpy.array((0.0, 0.0, 1.0))
-	
+	event.widget.key_direction[2] = 1.0
+
 def move_down(event):
-	event.widget.origin -= 120. * numpy.array((0.0, 0.0, 1.0))
+	event.widget.key_direction[2] = -1.0
+
+def move_stop_fwd(event):
+	event.widget.key_direction[0] = 0.0
+
+def move_stop_side(event):
+	event.widget.key_direction[1] = 0.0
 	
+def move_stop_up(event):
+	event.widget.key_direction[2] = 0.0
+
 def m1click(event):
 	event.widget.get_current_ent_line(event.x, event.y)
 
 def m3click(event):
 	event.widget.button_center = (event.x, event.y)
-		
+
 def m3drag(event):
 	event.widget.rotation = [
 		1.0,
@@ -422,29 +440,36 @@ def m3drag(event):
 	event.widget.rotation[2] = min(event.widget.rotation[2], numpy.deg2rad(185.0))
 	event.widget.rotation[2] = max(event.widget.rotation[2], numpy.deg2rad(5.0))
 	event.widget.button_center = (event.x, event.y)
-	
+
 def mwheel(event):
 	event.widget.origin += event.delta * 0.5 * event.widget.forward_vec
 
 def main(root, text):
 	app = AppOgl(root, width = 2000, height = 400)
-	app.animate = 1 #1000 // 60
+	app.animate = 8
 	app.after(200, app.printContext)
 	app.append(text)
 	
-	app.bind("w", move_fwd)
-	app.bind("s", move_bck)
-	app.bind("a", move_lft)
-	app.bind("d", move_rgt)
+	app.bind("<KeyPress-w>", move_fwd)
+	app.bind("<KeyRelease-w>", move_stop_fwd)
+	app.bind("<KeyPress-s>", move_bck)
+	app.bind("<KeyRelease-s>", move_stop_fwd)
+	app.bind("<KeyPress-a>", move_lft)
+	app.bind("<KeyRelease-a>", move_stop_side)
+	app.bind("<KeyPress-d>", move_rgt)
+	app.bind("<KeyRelease-d>", move_stop_side)
 	app.bind("h", app.hide_selected)
 	root.bind_all("<Alt-h>", app.unhide_all)
-	app.bind("<space>", move_up)
-	app.bind("c", move_down)
+	app.bind("<KeyPress-space>", move_up)
+	app.bind("<KeyRelease-space>", move_stop_up)
+	app.bind("<KeyPress-c>", move_down)
+	app.bind("<KeyRelease-c>", move_stop_up)
 	app.bind("<B3-Motion>", m3drag)
 	app.bind("<Button-3>", m3click)
 	app.bind("<Button-1>", m1click)
 	app.bind("<MouseWheel>", mwheel)
 	app.bind('<Escape>', app.unselect_all)
+	
 	return app
 
 if __name__ == "__main__":
