@@ -8,6 +8,7 @@ from tkinter.scrolledtext import *
 import file_menu
 import edit_menu
 import format_menu
+import render_menu
 import help_menu
 import ogl_frame
 
@@ -118,6 +119,7 @@ def main():
 	file_menu.main(root, text, menubar, model_frame, btn)#, shader_listbox)
 	edit_menu.main(root, text, menubar)
 	format_menu.main(root, text, menubar)
+	render_menu.main(root, menubar, model_frame)
 	help_menu.main(root, text, menubar)
 	
 	text_frame.grid(column=0, row=0, sticky=(N, S, W), padx=1, pady=1)

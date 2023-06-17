@@ -59,6 +59,7 @@ class AppOgl(OpenGLFrame):
 	right_vec = numpy.array([0., 0., 0.])
 	up_vec = numpy.array([0., 0., 0.])
 	
+	multisample = 4
 	render_fbo = None
 	pick_fbo = None
 	
@@ -86,18 +87,16 @@ class AppOgl(OpenGLFrame):
 		if self.render_fbo is not None:
 			if self.width != self.render_fbo.width or self.height != self.render_fbo.height:
 				del self.render_fbo
-				self.render_fbo = FBO(self.width, self.height, 4)
+				del self.pick_fbo
+				self.render_fbo = FBO(self.width, self.height, self.multisample)
 				self.pick_fbo = FBO(self.width, self.height, 0)
 		else:
-			self.render_fbo = FBO(self.width, self.height, 4)
+			self.render_fbo = FBO(self.width, self.height, self.multisample)
 			self.pick_fbo = FBO(self.width, self.height, 0)
 
 		self.is_picking = False
 		
 	def redraw(self):
-		if self.render_fbo is None:
-			self.render_fbo = FBO(self.width, self.height, 4)
-
 
 		shader = self.shaders["Vertex_Color"]
 		fbo = self.render_fbo.bind
@@ -161,6 +160,13 @@ class AppOgl(OpenGLFrame):
 			GL.glBlitFramebuffer(0, 0, self.width, self.height, 0, 0, self.width, self.height, GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
 		
 		self.is_picking = False
+		
+	def set_msaa(self, multisample):
+		if self.multisample == multisample:
+			return
+		self.multisample = multisample
+		del self.render_fbo
+		self.render_fbo = FBO(self.width, self.height, self.multisample)
 		
 	def get_current_ent_line(self, x, y):
 		self.is_picking = True
