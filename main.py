@@ -49,6 +49,7 @@ class CustomText(ScrolledText):
 		self.tk.call("rename", self._w, self._orig)
 		self.tk.createcommand(self._w, self._proxy)
 
+		self.current_line = 1
 	def _proxy(self, *args):
 		# let the actual widget perform the requested action
 		cmd = (self._orig,) + args
@@ -68,6 +69,11 @@ class CustomText(ScrolledText):
 			args[0:2] == ("yview", "scroll")
 		):
 			self.event_generate("<<Change>>", when="tail")
+
+		if (args[0] == "mark"):
+			if int(self.index(INSERT).split('.')[0]) != self.current_line:
+				self.event_generate("<<Current_Line_Changed>>", when="tail")
+				self.current_line = int(self.index(INSERT).split('.')[0])
 
 		# return what the actual widget returned
 		return result

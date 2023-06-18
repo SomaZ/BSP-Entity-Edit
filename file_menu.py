@@ -170,6 +170,10 @@ class File():
 		#for shader in self.bsp.lumps["shaders"]:
 		#	self.shaders.insert(END, shader.name)
 
+	def pick_object_per_current_line(self, *args):
+		current_line = int(self.text.index(INSERT).split('.')[0]) - 1
+		self.gl.pick_object_per_line(current_line)
+
 	def quit(self):
 		entry = askyesno(title="Quit", message="Are you sure you want to quit?")
 		if entry == True:
@@ -188,6 +192,7 @@ def main(root, text, menubar, opengl_frame, refresh_btn):#, shader_frame):
 	root.config(menu=menubar)
 	
 	refresh_btn.bind("<Button-1>", objFile.reload_entities)
+	text.bind("<<Current_Line_Changed>>", objFile.pick_object_per_current_line)
 
 if __name__ == "__main__":
 	print("Please run 'main.py'")

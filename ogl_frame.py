@@ -199,6 +199,8 @@ class AppOgl(OpenGLFrame):
 			picked_line = self.opengl_objects[picked_object_index].new_line
 		except:
 			return
+		self.unselect_all()
+		self.opengl_objects[picked_object_index].selected = True
 		
 		self.text.tag_remove("found", '1.0', END)
 		idx = self.text.search("}", str(picked_line + 1)+".0", nocase=0, stopindex=END)
@@ -209,9 +211,6 @@ class AppOgl(OpenGLFrame):
 		self.text.tag_add('found', str(picked_line + 1)+".0", str(int(line)+1)+"."+char)
 		self.text.tag_config('found', foreground='white', background='green')
 		self.text.see(str(picked_line + 1)+".0")
-		
-		self.unselect_all()
-		self.opengl_objects[picked_object_index].selected = True
 
 	def unselect_all(self, *args):
 		for obj in self.opengl_objects:
@@ -385,7 +384,23 @@ class AppOgl(OpenGLFrame):
 				mesh.vertex_normals.get_indexed(),
 				blend
 				)
-		
+
+	def pick_object_per_line(self, line):
+		picked_obj = None
+		closest_line = 0
+		for object in self.opengl_objects:
+			obj_line = object.new_line
+			if obj_line > line:
+				continue
+			if obj_line > closest_line:
+				closest_line = obj_line
+				picked_obj = object
+
+		if picked_obj is None:
+			return
+		self.unselect_all()
+		picked_obj.selected = True
+
 	def clear_objects(self):
 		self.opengl_objects.clear()	
 	
@@ -441,7 +456,7 @@ def m3drag(event):
 		event.widget.rotation[1] + (-event.widget.button_center[0] + event.x) * 0.003,
 		event.widget.rotation[2] + (-event.widget.button_center[1] + event.y) * 0.003,
 		0]
-	event.widget.rotation[2] = min(event.widget.rotation[2], numpy.deg2rad(185.0))
+	event.widget.rotation[2] = min(event.widget.rotation[2], numpy.deg2rad(175.0))
 	event.widget.rotation[2] = max(event.widget.rotation[2], numpy.deg2rad(5.0))
 	event.widget.button_center = (event.x, event.y)
 
