@@ -358,6 +358,7 @@ class AppOgl(OpenGLFrame):
 
 		self.opengl_meshes[name] = (
 			OpenGLMesh(
+				name,
 				numpy.array(new_positions).astype(numpy.float32),
 				numpy.array(new_indices).astype(numpy.uint32),
 				numpy.array(new_colors).astype(numpy.uint8),
@@ -400,6 +401,35 @@ class AppOgl(OpenGLFrame):
 			return
 		self.unselect_all()
 		picked_obj.selected = True
+		
+	def set_selected_object_position(self, vector):
+		for object in self.opengl_objects:
+			if object.selected:
+				object.set_position(vector)
+				return
+				
+	def set_selected_object_rotation(self, vector):
+		rotation = numpy.array([
+			numpy.deg2rad(vector[0]),
+			numpy.deg2rad(vector[1]),
+			numpy.deg2rad(vector[2])
+			])
+		for object in self.opengl_objects:
+			if object.selected:
+				if object.mesh.name.startswith("*"):
+					return
+				print("set_rotation call")
+				object.set_rotation(rotation)
+				return
+				
+	def set_selected_object_scale(self, vector):
+		for object in self.opengl_objects:
+			if object.selected:
+				if object.mesh.name.startswith("*"):
+					return
+				print("set_scale call")
+				object.set_scale(vector)
+				return
 
 	def clear_objects(self):
 		self.opengl_objects.clear()	

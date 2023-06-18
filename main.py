@@ -49,8 +49,14 @@ class CustomText(ScrolledText):
 		self.tk.call("rename", self._w, self._orig)
 		self.tk.createcommand(self._w, self._proxy)
 
+		self.num_lines = 1
 		self.current_line = 1
+		self.needs_rebuild = False
+
 	def _proxy(self, *args):
+
+		num_lines = self.num_lines
+
 		# let the actual widget perform the requested action
 		cmd = (self._orig,) + args
 		try:
@@ -69,6 +75,32 @@ class CustomText(ScrolledText):
 			args[0:2] == ("yview", "scroll")
 		):
 			self.event_generate("<<Change>>", when="tail")
+
+		if (args[0] in ("insert", "replace", "delete")):
+			current_line_text = self.get('insert linestart', 'insert lineend')
+			if int(self.index('end-1c').split('.')[0]) != num_lines:
+				self.needs_rebuild = True
+				self.num_lines = int(self.index('end-1c').split('.')[0])
+			elif current_line_text.startswith("\"origin\""):
+				if self.needs_rebuild:
+					self.event_generate("<<Rebuild>>", when="tail")
+					self.needs_rebuild = False
+					return result
+				self.event_generate("<<Origin_Modified>>", when="tail")
+			elif (current_line_text.startswith("\"angle\"") 
+				  or current_line_text.startswith("\"angles\"")):
+				if self.needs_rebuild:
+					self.event_generate("<<Rebuild>>", when="tail")
+					self.needs_rebuild = False
+					return result
+				self.event_generate("<<Rotation_Modified>>", when="tail")
+			elif (current_line_text.startswith("\"modelscale\"")
+				  or current_line_text.startswith("\"modelscale_vec\"")):
+				if self.needs_rebuild:
+					self.event_generate("<<Rebuild>>", when="tail")
+					self.needs_rebuild = False
+					return result
+				self.event_generate("<<Scale_Modified>>", when="tail")
 
 		if (args[0] == "mark"):
 			if int(self.index(INSERT).split('.')[0]) != self.current_line:

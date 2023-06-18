@@ -63,6 +63,35 @@ class OpenGLObject():
 		self.selected = False
 		self.hidden = False
 		
+	def update_model_matrix(self):
+		rotation_m = (
+			Rz(self.rotation[2]) * 
+			Ry(self.rotation[1]) * 
+			Rx(self.rotation[0])
+		)
+		R = numpy.matrix(numpy.identity(4))
+		R[:3,:3] = numpy.vstack(
+			[rotation_m[0],
+			rotation_m[1],
+			rotation_m[2]]
+		)
+		T = m_translate(self.position)
+		S = m_scale(self.scale)
+		
+		self.modelMatrix = numpy.transpose(T * R * S)
+		
+	def set_position(self, position):
+		self.position = position
+		self.update_model_matrix()
+		
+	def set_rotation(self, rotation):
+		self.rotation = rotation
+		self.update_model_matrix()
+		
+	def set_scale(self, scale):
+		self.scale = scale
+		self.update_model_matrix()
+		
 	def draw(self, type = None):
 		GL.glBindVertexArray(self.mesh.vertex_array_object)
 		
@@ -86,12 +115,13 @@ class OpenGLObject():
 		
 	
 class OpenGLMesh():
-	def __init__(self, positions, indices = None, colors = None, normals = None, blend = None):
+	def __init__(self, name, positions, indices = None, colors = None, normals = None, blend = None):
 		if positions is None:
 			raise Exception("Could not create OpenGL Object")
 			
 		self.render_type = GL.GL_POINTS
 		self.blend = blend
+		self.name = name
 		
 		# Create a new VAO (Vertex Array Object) and bind it
 		self.vertex_array_object = GL.glGenVertexArrays(1)
