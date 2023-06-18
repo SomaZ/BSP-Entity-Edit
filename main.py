@@ -52,6 +52,11 @@ class CustomText(ScrolledText):
 		self.num_lines = 1
 		self.current_line = 1
 		self.needs_rebuild = False
+		
+	def add_rebuild_event(self, *args):
+		if self.needs_rebuild:
+			self.event_generate("<<Rebuild>>", when="tail")
+			self.needs_rebuild = False
 
 	def _proxy(self, *args):
 
@@ -180,6 +185,7 @@ def main():
 		text.focus_set()
 		model_frame.stop_movement()
 	def leave(event):
+		text.add_rebuild_event()
 		model_frame.focus_set()
 		
 	text.bind('<Enter>', enter)
