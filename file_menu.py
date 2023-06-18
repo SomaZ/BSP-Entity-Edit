@@ -36,28 +36,28 @@ class File():
 			return
 		try:
 			t = self.text.get(0.0, END).rstrip()
-			
+
 			if t.endswith("\0"):
 				t = t[:-1]
-			
+
 			if not t.endswith("\n"):
 				t = t + "\n"
-				
+
 			if self.filename.endswith(".ent"):
 				f = open(self.filename, "w")
 				f.write(t)
 				f.close()
 				self.root.title("BSP Entity Edit - " + self.bsp.map_name)
 				return
-				
+
 			t = t + "\0"
-			
+
 			if self.bsp is None:
 				raise Exception("No bsp file opened, tried writing: " + self.filename)
 			self.bsp.set_entity_lump(t)
-			
+
 			bsp_bytes = self.bsp.to_bytes()
-			
+
 			f = open(self.filename, "wb")
 			f.write(bsp_bytes)
 			f.close()
@@ -70,27 +70,27 @@ class File():
 		if self.filename is None:
 			showerror(title="Error", message="Open a .bsp file first")
 			return
-			
+
 		if self.bsp is None:
 			raise Exception("No bsp file opened, tried writing: " + self.filename)
 
 		f = asksaveasfile(mode='wb', filetypes = bsp_file_types)
 		if f is None:
 			return
-			
+
 		t = self.text.get(0.0, END).rstrip()
-			
+
 		if f.name.endswith(".bsp"):
 			if t.endswith("\0"):
 				t = t[:-1]
-			
+
 			if not t.endswith("\n"):
 				t = t + "\n"
 			t = t + "\0"
-			
+
 			self.bsp.set_entity_lump(t)
 			bsp_bytes = self.bsp.to_bytes()
-			
+
 			try:
 				f.write(bsp_bytes)
 				f.close()
@@ -111,7 +111,7 @@ class File():
 		if f is None:
 			return
 		self.filename = f.name
-		
+
 		if f.name.endswith(".bsp"):
 			vfs = Q3VFS()
 			vfs.build_index()
@@ -124,16 +124,16 @@ class File():
 			)
 
 			bsp = BSP(vfs, import_settings)
-			
+
 			self.gl.clear_meshes()
 			self.gl.add_bsp_models(bsp.get_bsp_models())
-			
+
 			lump = bsp.lumps["entities"]
 			stringdata = []
 			for i in lump:
 				stringdata.append(i.char.decode("latin-1"))
 			entities_string = "".join(stringdata)
-			
+
 			self.root.title("BSP Entity Edit - " + bsp.map_name)
 			self.bsp = bsp
 		elif self.bsp is None:
@@ -142,20 +142,20 @@ class File():
 		else:
 			entities_string = f.read().rstrip()
 			self.bsp.set_entity_lump(entities_string)
-		
+
 		self.text.delete(0.0, END)
 		self.text.insert(0.0, entities_string)
 		self.text.edit_reset()
-		
+
 		f.close()
-		
+
 		self.update_gl_entity_objects()
 		#self.reload_shaders()
-		
+
 	def update_bsp_entity_lump(self):
 		t = self.text.get(0.0, END).rstrip()
 		self.bsp.set_entity_lump(t)
-		
+
 	def update_gl_entity_objects(self):
 		self.gl.clear_objects()
 		bsp_objects = self.bsp.get_bsp_entity_objects()
@@ -165,17 +165,17 @@ class File():
 				bsp_objects[object_name]
 			)
 		self.gl.update_object_indexes()
-			
+
 	def reload_entities(self, *args):
 		if self.bsp is None:
 			return
 		self.update_bsp_entity_lump()
 		self.update_gl_entity_objects()
-		
+
 	def reload_shaders(self):
 		if self.bsp is None:
 			return
-			
+
 		#self.shaders.delete(0, END)
 		
 		#for shader in self.bsp.lumps["shaders"]:
