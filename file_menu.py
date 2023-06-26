@@ -5,6 +5,7 @@ from tkinter.messagebox import *
 
 from pyidtech3lib import BSP_READER as BSP
 from pyidtech3lib import Q3VFS, Import_Settings, Surface_Type, Preset
+from copy import deepcopy
 
 bsp_file_types = [("BSP files","*.bsp"), ("Entity files","*.ent")]
 
@@ -126,7 +127,7 @@ class File():
 			bsp = BSP(vfs, import_settings)
 
 			self.gl.clear_meshes()
-			self.gl.add_bsp_models(bsp.get_bsp_models())
+			self.gl.add_bsp_models(deepcopy(bsp).get_bsp_models())
 
 			lump = bsp.lumps["entities"]
 			stringdata = []
