@@ -82,9 +82,6 @@ class AppOgl(OpenGLFrame):
 		GL.glEnable(GL.GL_CULL_FACE)
 		GL.glCullFace(GL.GL_FRONT)
 		
-		GL.glEnable(GL.GL_PRIMITIVE_RESTART)
-		GL.glPrimitiveRestartIndex(PRIMITIVE_RESTART)
-		
 		if self.render_fbo is not None:
 			if self.width != self.render_fbo.width or self.height != self.render_fbo.height:
 				del self.render_fbo
@@ -104,7 +101,9 @@ class AppOgl(OpenGLFrame):
 			self.right_vec * self.key_direction[1] +
 			numpy.array([0.0, 0.0, 1.0]) * self.key_direction[2]
 			) * 30.0
-		shader = self.shaders["Vertex_Color"]
+		shader = self.shaders.get("Vertex_Color")
+		if shader is None:
+			return
 		fbo = self.render_fbo.bind
 		if self.is_picking:
 			fbo = self.pick_fbo.bind
@@ -326,12 +325,15 @@ class AppOgl(OpenGLFrame):
 		mode = GL.GL_TRIANGLES
 		for surface in indices:
 			if len(surface) > 3:
-				mode = GL.GL_TRIANGLE_FAN
-		for surface in indices:
+				last_index = surface[1]
+				for index in surface[2:]:
+					new_indices.append(surface[0])
+					new_indices.append(last_index)
+					new_indices.append(index)
+					last_index = index
+				continue
 			for index in surface:
 				new_indices.append(index)
-			if mode == GL.GL_TRIANGLE_FAN:
-				new_indices.append(PRIMITIVE_RESTART)
 
 		new_positions = []
 		for vert in vertices:

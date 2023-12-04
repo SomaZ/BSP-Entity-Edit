@@ -9,7 +9,7 @@ UNIFORM_LIST = [
 	"u_line",
 ]
 
-vertex_shader = """#version 150 
+vertex_shader = """#version 130 
 in vec3 position;
 in vec4 color;
 in vec3 vertex_normal;
@@ -27,7 +27,7 @@ void main()
 }
 """
 
-fragment_shader = """#version 150
+fragment_shader = """#version 130
 in vec4 v_color;
 in vec3 v_normal;
 uniform vec4 u_color;
@@ -47,7 +47,7 @@ void main()
 }
 """
 
-pick_fragment_shader = """#version 150
+pick_fragment_shader = """#version 130
 in vec4 v_color;
 in vec3 v_normal;
 uniform vec4 u_line;
