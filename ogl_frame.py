@@ -175,7 +175,10 @@ class AppOgl(OpenGLFrame):
 			return
 		self.multisample = multisample
 		del self.render_fbo
-		self.render_fbo = FBO(self.width, self.height, self.multisample)
+		try:
+			self.render_fbo = FBO(self.width, self.height, self.multisample)
+		except Exception:
+			self.render_fbo = FBO(self.width, self.height, 0)
 		
 	def get_current_ent_line(self, x, y):
 		self.is_picking = True
