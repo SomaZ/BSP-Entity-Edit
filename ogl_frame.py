@@ -15,9 +15,6 @@ else:
 	import Tkinter as tk
 
 
-PRIMITIVE_RESTART = 65536204;
-
-
 def magnitude(v):
 	return numpy.sqrt(numpy.sum(v ** 2))
 
