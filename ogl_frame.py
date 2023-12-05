@@ -144,7 +144,11 @@ class AppOgl(OpenGLFrame):
 				GL.glUniform4f(shader.uniform_loc["u_line"], *obj.encoded_object_index);
 			
 			if obj.selected and not self.is_picking:
-				GL.glUniform4f(shader.uniform_loc["u_color"], 1., .01, 1., 1.);
+				if obj.mesh.blend:
+					mix_factor = 1.0
+				else:
+					mix_factor = 0.7
+				GL.glUniform4f(shader.uniform_loc["u_color"], 1., .01, 1., mix_factor);
 				obj.draw()
 				GL.glUniform4f(shader.uniform_loc["u_color"], 1., 1., 1., 0.);
 			else:
