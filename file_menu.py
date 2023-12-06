@@ -23,13 +23,13 @@ def parse_line(line):
 # creating File
 class File():
 
-	def __init__(self, text, root, opengl_frame):#, shader_frame):
+	def __init__(self, text, root, opengl_frame, shader_frame):
 		self.filename = None
 		self.bsp = None
 		self.text = text
 		self.root = root
 		self.gl = opengl_frame
-		#self.shaders = shader_frame
+		self.shaders = shader_frame
 
 	def saveFile(self):
 		if self.filename is None:
@@ -151,7 +151,7 @@ class File():
 		f.close()
 
 		self.update_gl_entity_objects()
-		#self.reload_shaders()
+		self.reload_shaders()
 
 	def update_bsp_entity_lump(self):
 		t = self.text.get(0.0, END).rstrip()
@@ -173,14 +173,26 @@ class File():
 		self.update_bsp_entity_lump()
 		self.update_gl_entity_objects()
 
+	def set_shader_data(self, index, name = None, surface_flags = None, content_flags = None):
+		if index < 0 or index > len(self.bsp.lumps["shaders"]):
+			return
+		# TODO Data validation before setting the data
+		if name is not None:
+			self.bsp.lumps["shaders"][index].name = bytes(name, "latin-1")
+		if surface_flags is not None:
+			self.bsp.lumps["shaders"][index].flags = surface_flags
+		if content_flags is not None:
+			self.bsp.lumps["shaders"][index].contents = content_flags
+		
+
 	def reload_shaders(self):
 		if self.bsp is None:
 			return
 
-		#self.shaders.delete(0, END)
+		self.shaders.delete(0, END)
 		
-		#for shader in self.bsp.lumps["shaders"]:
-		#	self.shaders.insert(END, shader.name)
+		for shader in self.bsp.lumps["shaders"]:
+			self.shaders.insert(END, shader.name)
 
 	def pick_object_per_current_line(self, *args):
 		current_line = int(self.text.index(INSERT).split('.')[0]) - 1
@@ -239,9 +251,9 @@ class File():
 			self.root.destroy()
 
 
-def main(root, text, menubar, opengl_frame, refresh_btn):#, shader_frame):
+def main(root, text, menubar, opengl_frame, refresh_btn, shader_frame):
 	filemenu = Menu(menubar)
-	objFile = File(text, root, opengl_frame)#, shader_frame)
+	objFile = File(text, root, opengl_frame, shader_frame)
 	filemenu.add_command(label="Open", command=objFile.openFile)
 	filemenu.add_command(label="Save", command=objFile.saveFile)
 	filemenu.add_command(label="Save As...", command=objFile.saveAs)
@@ -256,6 +268,8 @@ def main(root, text, menubar, opengl_frame, refresh_btn):#, shader_frame):
 	text.bind("<<Origin_Modified>>", objFile.update_position_current_object)
 	text.bind("<<Rotation_Modified>>", objFile.update_rotation_current_object)
 	text.bind("<<Scale_Modified>>", objFile.update_scale_current_object)
+
+	return objFile
 
 if __name__ == "__main__":
 	print("Please run 'main.py'")

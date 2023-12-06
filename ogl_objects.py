@@ -115,7 +115,16 @@ class OpenGLObject():
 		
 	
 class OpenGLMesh():
-	def __init__(self, name, positions, indices = None, colors = None, normals = None, blend = None):
+	def __init__(
+			self,
+			name,
+			positions,
+			indices = None,
+			colors = None,
+			normals = None,
+			tcs = None,
+			vertex_info = None,
+			blend = None):
 		if positions is None:
 			raise Exception("Could not create OpenGL Object")
 			
@@ -167,6 +176,30 @@ class OpenGLMesh():
 		GL.glEnableVertexAttribArray(2)
 		GL.glVertexAttribPointer(2, 3, GL.GL_FLOAT, False,
 								 0, ctypes.c_void_p(0))
+		
+		self.tc_buffer = GL.glGenBuffers(1)
+		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.tc_buffer)
+		if tcs is not None:
+			vs = tcs
+		else:
+			vs = numpy.array([0.0 for i in range(self.num_vertices * 4)])
+		GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs) * ctypes.sizeof(ctypes.c_float), vs, GL.GL_STATIC_DRAW)
+		# Describe the normals data layout in the buffer
+		GL.glEnableVertexAttribArray(3)
+		GL.glVertexAttribPointer(3, 4, GL.GL_FLOAT, False,
+								 0, ctypes.c_void_p(0))
+		
+		self.info_buffer = GL.glGenBuffers(1)
+		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.info_buffer)
+		if vertex_info is not None:
+			vs = vertex_info
+		else:
+			vs = numpy.array([0.0 for i in range(self.num_vertices * 3)])
+		GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs) * ctypes.sizeof(ctypes.c_float), vs, GL.GL_STATIC_DRAW)
+		# Describe the normals data layout in the buffer
+		GL.glEnableVertexAttribArray(4)
+		GL.glVertexAttribPointer(4, 4, GL.GL_FLOAT, False,
+								 0, ctypes.c_void_p(0))
 				
 		if indices is not None:
 			# Generate buffers to hold our indices
@@ -181,13 +214,15 @@ class OpenGLMesh():
 		GL.glDisableVertexAttribArray(0)
 		GL.glDisableVertexAttribArray(1)
 		GL.glDisableVertexAttribArray(2)
+		GL.glDisableVertexAttribArray(3)
+		GL.glDisableVertexAttribArray(4)
 		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, 0)
 		GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, 0)
 
 
 	def __del__(self):
 		GL.glDeleteVertexArrays(1, [self.vertex_array_object])
-		GL.glDeleteBuffers(4, [self.vertex_buffer, self.index_buffer, self.normal_buffer, self.color_buffer])
+		GL.glDeleteBuffers(6, [self.vertex_buffer, self.index_buffer, self.normal_buffer, self.color_buffer, self.tc_buffer, self.info_buffer])
 		
 		
 box_verts = ((-8.0, -8.0, -8.0),

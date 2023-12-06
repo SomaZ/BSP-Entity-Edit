@@ -47,6 +47,13 @@ def viewPolar( f, s, u, eye ):
 	T = translate(-numpy.array(eye))
 	return M * T
 
+SHADERMODE = {
+	"Vertices" : 0,
+	"Surfaces" : 1,
+	"Shaders" : 2,
+	"Fogs" : 3
+}
+
 
 class AppOgl(OpenGLFrame):
 	button_center = (0, 0)
@@ -60,6 +67,9 @@ class AppOgl(OpenGLFrame):
 	multisample = 4
 	render_fbo = None
 	pick_fbo = None
+
+	mode = "Entities"
+	selected_data = -2
 	
 	opengl_meshes = {}
 	opengl_objects = []
@@ -98,13 +108,21 @@ class AppOgl(OpenGLFrame):
 			self.right_vec * self.key_direction[1] +
 			numpy.array([0.0, 0.0, 1.0]) * self.key_direction[2]
 			) * 30.0
-		shader = self.shaders.get("Vertex_Color")
+
+		if self.mode == "Entities":
+			shader = self.shaders.get("Vertex_Color")
+		else:
+			shader = self.shaders.get("Vertex_Color_Selection")
+
 		if shader is None:
 			return
 		fbo = self.render_fbo.bind
 		if self.is_picking:
 			fbo = self.pick_fbo.bind
-			shader = self.shaders["Pick_Object"]
+			if self.mode == "Entities":
+				shader = self.shaders["Pick_Object"]
+			else:
+				shader = self.shaders["Pick_Selection"]
 			
 		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, fbo)
 		GL.glUseProgram(shader.program)
@@ -121,6 +139,10 @@ class AppOgl(OpenGLFrame):
 		for obj in self.opengl_objects:
 			if obj.hidden:
 				continue
+
+			if self.mode != "Entities":
+				if not obj.mesh.name.startswith("*"):
+					continue
 				
 			if obj.mesh.blend and current_blend is None:
 				if not self.is_picking:
@@ -139,6 +161,10 @@ class AppOgl(OpenGLFrame):
 			GL.glUniformMatrix4fv(shader.uniform_loc["u_model_mat"], 1, GL.GL_FALSE, obj.modelMatrix)
 			if (shader.uniform_loc["u_line"] != -1):
 				GL.glUniform4f(shader.uniform_loc["u_line"], *obj.encoded_object_index);
+			if (shader.uniform_loc["u_pick"] != -1):
+				GL.glUniform1i(shader.uniform_loc["u_pick"], self.selected_data);
+			if (shader.uniform_loc["u_mode"] != -1):
+				GL.glUniform1i(shader.uniform_loc["u_mode"], SHADERMODE[self.mode]);
 			
 			if obj.selected and not self.is_picking:
 				if obj.mesh.blend:
@@ -166,6 +192,12 @@ class AppOgl(OpenGLFrame):
 			GL.glBlitFramebuffer(0, 0, self.width, self.height, 0, 0, self.width, self.height, GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
 		
 		self.is_picking = False
+
+	def set_selected_data(self, data):
+		self.selected_data = data
+
+	def set_mode(self, mode):
+		self.mode = mode
 		
 	def set_msaa(self, multisample):
 		if self.multisample == multisample:
@@ -197,27 +229,35 @@ class AppOgl(OpenGLFrame):
 		GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0)
 		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 		
-		picked_object_index = data[0] + data[1] * 256 + data[2] * 256*256;
-		try:
-			picked_line = self.opengl_objects[picked_object_index].new_line
-		except:
-			return
-		self.unselect_all()
-		self.opengl_objects[picked_object_index].selected = True
-		
-		self.text.tag_remove("found", '1.0', END)
-		idx = self.text.search("}", str(picked_line + 1)+".0", nocase=0, stopindex=END)
-		try:
-			line, char = idx.split(".")
-		except:
-			return
-		self.text.tag_add('found', str(picked_line + 1)+".0", str(int(line)+1)+"."+char)
-		self.text.tag_config('found', foreground='white', background='green')
-		self.text.see(str(picked_line + 1)+".0")
+		picked_data = data[0] + data[1] * 256 + data[2] * 256*256;
+		if self.mode == "Entities":
+			try:
+				picked_line = self.opengl_objects[picked_data].new_line
+			except:
+				return
+			self.unselect_all()
+			self.opengl_objects[picked_data].selected = True
+			
+			self.text.tag_remove("found", '1.0', END)
+			idx = self.text.search("}", str(picked_line + 1)+".0", nocase=0, stopindex=END)
+			try:
+				line, char = idx.split(".")
+			except:
+				return
+			self.text.tag_add('found', str(picked_line + 1)+".0", str(int(line)+1)+"."+char)
+			self.text.tag_config('found', foreground='white', background='green')
+			self.text.see(str(picked_line + 1)+".0")
+		elif self.mode == "Shaders":
+			self.set_selected_data(picked_data)
+			self.shader_listbox.selection_clear(0, END)
+			self.shader_listbox.select_set(picked_data)
+			self.shader_listbox.see(picked_data)
+			self.shader_listbox.event_generate("<<ListboxSelect>>", when="tail")
 
 	def unselect_all(self, *args):
 		for obj in self.opengl_objects:
 			obj.selected = False
+		self.set_selected_data(-2)
 			
 	def hide_selected(self, *args):
 		for obj in self.opengl_objects:
@@ -323,9 +363,19 @@ class AppOgl(OpenGLFrame):
 			b = (index & 0x00FF0000) >> 16;
 			object.encoded_object_index = float(r)/255.0, float(g)/255.0, float(b)/255.0, 0.0
 		
-	def add_bsp_mesh(self, name, vertices, indices=None, colors=None, normals = None, blend = None, tc0=None, tc1=None):
+	def add_bsp_mesh(
+			self,
+			name,
+			vertices,
+			indices=None,
+			colors=None,
+			normals=None,
+			blend=None,
+			vertex_info=None,
+			tc0=None,
+			tc1=None):
+
 		new_indices = []
-		
 		mode = GL.GL_TRIANGLES
 		for surface in indices:
 			if len(surface) > 3:
@@ -361,6 +411,25 @@ class AppOgl(OpenGLFrame):
 			new_normals.append(normal[0])
 			new_normals.append(normal[1])
 			new_normals.append(normal[2])
+		if vertex_info is not None:
+			new_vertex_info = []
+			for info in vertex_info:
+				new_vertex_info.append(float(info[0]))
+				new_vertex_info.append(float(info[1]))
+				new_vertex_info.append(float(info[2]))
+				new_vertex_info.append(float(info[3]))
+		else:
+			new_vertex_info = [-2.0 for _ in range(len(normals)*3)]
+
+		if tc0 is not None and tc1 is not None:
+			new_tcs = []
+			for tc in zip(tc0, tc1):
+				new_tcs.append(tc[0][0])
+				new_tcs.append(tc[0][1])
+				new_tcs.append(tc[1][0])
+				new_tcs.append(tc[1][1])
+		else:
+			new_tcs = [0.0 for _ in range(len(normals)*4)]
 
 		self.opengl_meshes[name] = (
 			OpenGLMesh(
@@ -369,6 +438,8 @@ class AppOgl(OpenGLFrame):
 				numpy.array(new_indices).astype(numpy.uint32),
 				numpy.array(new_colors).astype(numpy.uint8),
 				numpy.array(new_normals).astype(numpy.float32),
+				numpy.array(new_tcs).astype(numpy.float32),
+				numpy.array(new_vertex_info).astype(numpy.float32),
 				blend
 				)
 			)
@@ -383,13 +454,32 @@ class AppOgl(OpenGLFrame):
 			else:
 				vcolors = mesh.vertex_colors["Color"].get_indexed()
 
+			vertex_info = None
+			if "BSP_VERT_INDEX" in mesh.vertex_data_layers:
+				vertex_info = zip(
+					mesh.vertex_data_layers["BSP_VERT_INDEX"].get_indexed(),
+					mesh.vertex_data_layers["BSP_SURFACE_INDEX"].get_indexed(),
+					mesh.vertex_data_layers["BSP_SHADER_INDEX"].get_indexed(),
+					mesh.vertex_data_layers["BSP_FOG_INDEX"].get_indexed(),
+					)
+			else:
+				vertex_info = [(-2.0, -2.0, -2.0, -2.0) for _ in range(len(mesh.indices))]
+
+			if "LightmapUV" in mesh.uv_layers:
+				lightmap_uvs = mesh.uv_layers["LightmapUV"].get_indexed()
+			else:
+				lightmap_uvs = mesh.uv_layers["UVMap"].get_indexed()
+
 			self.add_bsp_mesh(
 				mesh.name,
 				mesh.positions.get_indexed(),
 				mesh.indices,
 				vcolors,
 				mesh.vertex_normals.get_indexed(),
-				blend
+				blend,
+				vertex_info,
+				mesh.uv_layers["UVMap"].get_indexed(),
+				lightmap_uvs
 				)
 
 	def pick_object_per_line(self, line):
@@ -447,8 +537,9 @@ class AppOgl(OpenGLFrame):
 		self.opengl_objects.clear()  
 		self.opengl_meshes.clear()
 		
-	def append(self, text):
+	def append(self, text, shader_listbox):
 		self.text = text
+		self.shader_listbox = shader_listbox
 		
 	def stop_movement(self):
 		self.key_direction = numpy.array([0.0, 0.0, 0.0])
@@ -499,11 +590,11 @@ def m3drag(event):
 def mwheel(event):
 	event.widget.origin += event.delta * 0.5 * event.widget.forward_vec
 
-def main(root, text):
+def main(root, text, shader_listbox):
 	app = AppOgl(root, width = 2000, height = 400)
 	app.animate = 8
 	app.after(200, app.printContext)
-	app.append(text)
+	app.append(text, shader_listbox)
 	
 	app.bind("<KeyPress-w>", move_fwd)
 	app.bind("<KeyRelease-w>", move_stop_fwd)
