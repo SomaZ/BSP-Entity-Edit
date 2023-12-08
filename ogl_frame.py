@@ -141,7 +141,7 @@ class AppOgl(OpenGLFrame):
 				continue
 
 			if self.mode != "Entities":
-				if not obj.mesh.name.startswith("*"):
+				if not obj.mesh.name.startswith("*") or obj.mesh.blend:
 					continue
 				
 			if obj.mesh.blend and current_blend is None:
@@ -247,12 +247,18 @@ class AppOgl(OpenGLFrame):
 			self.text.tag_add('found', str(picked_line + 1)+".0", str(int(line)+1)+"."+char)
 			self.text.tag_config('found', foreground='white', background='green')
 			self.text.see(str(picked_line + 1)+".0")
-		elif self.mode == "Shaders":
+		else :
+			MODE_PICK = {
+				"Shaders" : self.shader_listbox,
+				"Fogs" : self.fogs_listbox,
+				"Surfaces" : self.surfaces_listbox
+			}
 			self.set_selected_data(picked_data)
-			self.shader_listbox.selection_clear(0, END)
-			self.shader_listbox.select_set(picked_data)
-			self.shader_listbox.see(picked_data)
-			self.shader_listbox.event_generate("<<ListboxSelect>>", when="tail")
+			listbox = MODE_PICK[self.mode]
+			listbox.selection_clear(0, END)
+			listbox.select_set(picked_data)
+			listbox.see(picked_data)
+			listbox.event_generate("<<ListboxSelect>>", when="tail")
 
 	def unselect_all(self, *args):
 		for obj in self.opengl_objects:
@@ -537,9 +543,11 @@ class AppOgl(OpenGLFrame):
 		self.opengl_objects.clear()  
 		self.opengl_meshes.clear()
 		
-	def append(self, text, shader_listbox):
+	def append(self, text, shader_listbox, fogs_listbox, surfaces_listbox):
 		self.text = text
 		self.shader_listbox = shader_listbox
+		self.fogs_listbox = fogs_listbox
+		self.surfaces_listbox = surfaces_listbox
 		
 	def stop_movement(self):
 		self.key_direction = numpy.array([0.0, 0.0, 0.0])
@@ -590,11 +598,11 @@ def m3drag(event):
 def mwheel(event):
 	event.widget.origin += event.delta * 0.5 * event.widget.forward_vec
 
-def main(root, text, shader_listbox):
+def main(root, text, shader_listbox, fog_listbox, surface_listbox):
 	app = AppOgl(root, width = 2000, height = 400)
 	app.animate = 8
 	app.after(200, app.printContext)
-	app.append(text, shader_listbox)
+	app.append(text, shader_listbox, fog_listbox, surface_listbox)
 	
 	app.bind("<KeyPress-w>", move_fwd)
 	app.bind("<KeyRelease-w>", move_stop_fwd)

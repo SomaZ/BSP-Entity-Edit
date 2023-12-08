@@ -23,13 +23,15 @@ def parse_line(line):
 # creating File
 class File():
 
-	def __init__(self, text, root, opengl_frame, shader_frame):
+	def __init__(self, text, root, opengl_frame, shader_frame, fog_frame, surface_frame):
 		self.filename = None
 		self.bsp = None
 		self.text = text
 		self.root = root
 		self.gl = opengl_frame
 		self.shaders = shader_frame
+		self.fogs = fog_frame
+		self.surfaces = surface_frame
 
 	def saveFile(self):
 		if self.filename is None:
@@ -152,6 +154,8 @@ class File():
 
 		self.update_gl_entity_objects()
 		self.reload_shaders()
+		self.reload_fogs()
+		self.reload_surfaces()
 
 	def update_bsp_entity_lump(self):
 		t = self.text.get(0.0, END).rstrip()
@@ -184,15 +188,38 @@ class File():
 		if content_flags is not None:
 			self.bsp.lumps["shaders"][index].contents = content_flags
 		
-
 	def reload_shaders(self):
 		if self.bsp is None:
 			return
 
 		self.shaders.delete(0, END)
+		for index, shader in enumerate(self.bsp.lumps["shaders"]):
+			self.shaders.insert(END, str(index) + " " + shader.name.decode("latin-1"))
+
+	def reload_fogs(self):
+		if self.bsp is None:
+			return
+
+		self.fogs.delete(0, END)
+		for index, fog in enumerate(self.bsp.lumps["fogs"]):
+			self.fogs.insert(END, str(index) + " " + fog.name.decode("latin-1"))
+
+	def reload_surfaces(self):
+		if self.bsp is None:
+			return
 		
-		for shader in self.bsp.lumps["shaders"]:
-			self.shaders.insert(END, shader.name)
+		TYPE_MATCHING = {
+			0: "BSP Surface",
+			1: "Planar Surface",
+			2: "Patch Mesh",
+			3: "Trisoup",
+			4: "No idea",
+			5: "Flares Foliage"
+		}
+
+		self.surfaces.delete(0, END)
+		for index, surface in enumerate(self.bsp.lumps["surfaces"]):
+			self.surfaces.insert(END, str(index) + " " + TYPE_MATCHING[surface.type])
 
 	def pick_object_per_current_line(self, *args):
 		current_line = int(self.text.index(INSERT).split('.')[0]) - 1
@@ -251,9 +278,9 @@ class File():
 			self.root.destroy()
 
 
-def main(root, text, menubar, opengl_frame, refresh_btn, shader_frame):
+def main(root, text, menubar, opengl_frame, refresh_btn, shader_frame, fog_frame, surface_frame):
 	filemenu = Menu(menubar)
-	objFile = File(text, root, opengl_frame, shader_frame)
+	objFile = File(text, root, opengl_frame, shader_frame, fog_frame, surface_frame)
 	filemenu.add_command(label="Open", command=objFile.openFile)
 	filemenu.add_command(label="Save", command=objFile.saveFile)
 	filemenu.add_command(label="Save As...", command=objFile.saveAs)

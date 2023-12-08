@@ -11,6 +11,7 @@ import format_menu
 import render_menu
 import help_menu
 import ogl_frame
+from data_frame import Data_frame, Data_variable
 
 # Text line numbers is based on
 # https://stackoverflow.com/questions/16369470/tkinter-adding-line-number-to-text-widget
@@ -114,6 +115,24 @@ class CustomText(ScrolledText):
 
 		# return what the actual widget returned
 		return result
+	
+SHADER_VARIABLES = (
+	Data_variable("Shader Name", "name", str, 1),
+	Data_variable("Surface Flags", "flags", int, 1),
+	Data_variable("Content Flags", "contents", int, 1),
+)
+
+FOG_VARIABLES = (
+	Data_variable("Shader Name", "name", str, 1),
+	Data_variable("Brush", "brush", int, 1),
+	Data_variable("Plane", "visibleSide", int, 1)
+)
+
+SURFACE_VARIABLES = (
+	Data_variable("Shader", "texture", int, 1),
+	Data_variable("Fog", "effect", int, 1),
+	Data_variable("Type", "type", int, 1),
+)
 
 def main():
 	# creating a tkinter window
@@ -138,55 +157,40 @@ def main():
 	text.bind("<Configure>", linenumbers.on_txt_change)
 	text.focus_set()
 	
-	shader_frame = Frame(root, padx = 5, pady = 5)
-
-	shader_list_frame = Frame(shader_frame)
-	shader_list_frame.grid(row = 0, column = 0, sticky=(N, E, W, S), padx=1, pady=1)
-	shader_scroll = Scrollbar(shader_list_frame)
-	shader_scroll.pack(side = RIGHT, fill = Y)
-	shader_listbox = Listbox(shader_list_frame, yscrollcommand = shader_scroll.set)
-	shader_listbox.pack(side=LEFT, fill = BOTH, expand = YES)
-	shader_scroll.config(command=shader_listbox.yview)
-
-	shader_data_frame = Frame(shader_frame)
-	shader_data_frame.grid(row = 1, column = 0, sticky=(S, E, W), padx=1, pady=1, columnspan=2)
-	shader_label = Label(shader_data_frame, text="Shader Name")
-	shader_label.grid(row = 0, column= 0)
-	shader_name = Entry(shader_data_frame)
-	shader_name.grid(row = 0, column= 1, sticky="we")
-	shader_surf_label = Label(shader_data_frame, text="Surface Flags")
-	shader_surf_label.grid(row = 1, column= 0)
-	shader_surf_flag = Entry(shader_data_frame)
-	shader_surf_flag.grid(row = 1, column= 1, sticky="we")
-	shader_content_label = Label(shader_data_frame, text = "Content Flags")
-	shader_content_label.grid(row = 2, column= 0)
-	shader_content_flag = Entry(shader_data_frame)
-	shader_content_flag.grid(row = 2, column= 1, sticky="we")
-	btn_discard = Button(shader_data_frame, text="Discard", height = 1)
-	btn_discard.grid(row = 3, column= 0)
-	btn_apply = Button(shader_data_frame, text="Apply", height = 1)
-	btn_apply.grid(row = 3, column= 1, sticky="we")
-
-	shader_data_frame.columnconfigure(0, weight=1)
-	shader_data_frame.columnconfigure(1, weight=100)
-
-	shader_frame.columnconfigure(0, weight=1)
-	shader_frame.rowconfigure(0, weight=100)
-	shader_frame.rowconfigure(1, weight=1)
+	data_frame_shaders = Data_frame(root, SHADER_VARIABLES)
+	data_frame_fogs = Data_frame(root, FOG_VARIABLES)
+	data_frame_surfaces = Data_frame(root, SURFACE_VARIABLES)
 	
 	tabControl.add(left_frame, text="Entities")
-	tabControl.add(shader_frame, text="Shaders")
+	tabControl.add(data_frame_shaders.frame, text="Shaders")
+	tabControl.add(data_frame_fogs.frame, text="Fogs")
+	tabControl.add(data_frame_surfaces.frame, text="Surfaces")
 	
 	# frame right
 	right_frame = LabelFrame(root, text="Map Render", padx=5, pady=5)
-	model_frame = ogl_frame.main(right_frame, text, shader_listbox)
+	model_frame = ogl_frame.main(
+		right_frame,
+		text,
+		data_frame_shaders.listbox,
+		data_frame_fogs.listbox,
+		data_frame_surfaces.listbox
+		)
 	btn = Button(right_frame, text="Update Entity Render", height = 1)
 	
 	# creating a menubar
 	menubar = Menu(root)
 
 	# adding our menus to the menubar
-	bfi = file_menu.main(root, text, menubar, model_frame, btn, shader_listbox)
+	bfi = file_menu.main(
+		root,
+		text,
+		menubar,
+		model_frame,
+		btn,
+		data_frame_shaders.listbox,
+		data_frame_fogs.listbox,
+		data_frame_surfaces.listbox
+		)
 	edit_menu.main(root, text, menubar)
 	format_menu.main(root, text, menubar)
 	render_menu.main(root, menubar, model_frame)
@@ -217,32 +221,54 @@ def main():
 		new_tab = event.widget.tab('current')['text']
 		model_frame.set_mode(new_tab)
 	def set_shader_ui_data(event = None):
-		if len(shader_listbox.curselection()) > 0:
-			index = shader_listbox.curselection()[0]
+		if len(data_frame_shaders.listbox.curselection()) > 0:
+			index = data_frame_shaders.listbox.curselection()[0]
 			model_frame.set_selected_data(index)
-			shader_name.delete(0,END)
-			shader_name.insert(0,bfi.bsp.lumps["shaders"][index].name)
-			shader_surf_flag.delete(0,END)
-			shader_surf_flag.insert(0,bfi.bsp.lumps["shaders"][index].flags)
-			shader_content_flag.delete(0,END)
-			shader_content_flag.insert(0,bfi.bsp.lumps["shaders"][index].contents)		
+			data_frame_shaders.update_data_ui(bfi.bsp.lumps["shaders"][index])
+	def set_fog_ui_data(event = None):
+		if len(data_frame_fogs.listbox.curselection()) > 0:
+			index = data_frame_fogs.listbox.curselection()[0]
+			model_frame.set_selected_data(index)
+			data_frame_fogs.update_data_ui(bfi.bsp.lumps["fogs"][index])	
+	def set_surface_ui_data(event = None):
+		if len(data_frame_surfaces.listbox.curselection()) > 0:
+			index = data_frame_surfaces.listbox.curselection()[0]
+			model_frame.set_selected_data(index)
+			data_frame_surfaces.update_data_ui(bfi.bsp.lumps["surfaces"][index])	
 	def set_selected_shader_data(event = None):
-		bfi.set_shader_data(
-			model_frame.selected_data,
-			name = shader_name.get(),
-			surface_flags=int(shader_surf_flag.get()),
-			content_flags=int(shader_content_flag.get())
-			)
+		index = model_frame.selected_data
+		data_frame_shaders.update_data_bsp(bfi.bsp.lumps["shaders"][index])
 		bfi.reload_shaders()
-		shader_listbox.select_set(model_frame.selected_data)
-		shader_listbox.see(model_frame.selected_data)
+		data_frame_shaders.listbox.select_set(index)
+		data_frame_shaders.listbox.see(index)
+	def set_selected_fog_data(event = None):
+		index = model_frame.selected_data
+		data_frame_fogs.update_data_bsp(bfi.bsp.lumps["fogs"][index])
+		bfi.reload_fogs()
+		data_frame_fogs.listbox.select_set(index)
+		data_frame_fogs.listbox.see(index)
+	def set_selected_surface_data(event = None):
+		index = model_frame.selected_data
+		#data_frame_surfaces.update_data_bsp(bfi.bsp.lumps["surfaces"][index])
+		# TODO implement updates to the opengl vbos to reflect texture or fog changes
+		bfi.reload_surfaces()
+		data_frame_surfaces.listbox.select_set(index)
+		data_frame_surfaces.listbox.see(index)
 	
 	text.bind('<Enter>', enter)
 	model_frame.bind('<Enter>', leave)
 	tabControl.bind('<<NotebookTabChanged>>', tab_change)
-	shader_listbox.bind('<<ListboxSelect>>', set_shader_ui_data)
-	btn_discard.configure(command=set_shader_ui_data)
-	btn_apply.configure(command=set_selected_shader_data)
+	data_frame_shaders.listbox.bind('<<ListboxSelect>>', set_shader_ui_data)
+	data_frame_shaders.btn_discard.configure(command=set_shader_ui_data)
+	data_frame_shaders.btn_apply.configure(command=set_selected_shader_data)
+
+	data_frame_fogs.listbox.bind('<<ListboxSelect>>', set_fog_ui_data)
+	data_frame_fogs.btn_discard.configure(command=set_fog_ui_data)
+	data_frame_fogs.btn_apply.configure(command=set_selected_fog_data)
+
+	data_frame_surfaces.listbox.bind('<<ListboxSelect>>', set_surface_ui_data)
+	data_frame_surfaces.btn_discard.configure(command=set_surface_ui_data)
+	data_frame_surfaces.btn_apply.configure(command=set_selected_surface_data)
 	
 	# running the whole program
 	root.mainloop()
