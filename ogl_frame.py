@@ -160,20 +160,20 @@ class AppOgl(OpenGLFrame):
 				
 			GL.glUniformMatrix4fv(shader.uniform_loc["u_model_mat"], 1, GL.GL_FALSE, obj.modelMatrix)
 			if (shader.uniform_loc["u_line"] != -1):
-				GL.glUniform4f(shader.uniform_loc["u_line"], *obj.encoded_object_index);
+				GL.glUniform4f(shader.uniform_loc["u_line"], *obj.encoded_object_index)
 			if (shader.uniform_loc["u_pick"] != -1):
-				GL.glUniform1i(shader.uniform_loc["u_pick"], self.selected_data);
+				GL.glUniform1i(shader.uniform_loc["u_pick"], self.selected_data)
 			if (shader.uniform_loc["u_mode"] != -1):
-				GL.glUniform1i(shader.uniform_loc["u_mode"], SHADERMODE[self.mode]);
+				GL.glUniform1i(shader.uniform_loc["u_mode"], SHADERMODE[self.mode])
 			
 			if obj.selected and not self.is_picking:
 				if obj.mesh.blend:
 					mix_factor = 1.0
 				else:
 					mix_factor = 0.7
-				GL.glUniform4f(shader.uniform_loc["u_color"], 1., .01, 1., mix_factor);
+				GL.glUniform4f(shader.uniform_loc["u_color"], 1., .01, 1., mix_factor)
 				obj.draw()
-				GL.glUniform4f(shader.uniform_loc["u_color"], 1., 1., 1., 0.);
+				GL.glUniform4f(shader.uniform_loc["u_color"], 1., 1., 1., 0.)
 			else:
 				obj.draw()
 
@@ -186,9 +186,9 @@ class AppOgl(OpenGLFrame):
 		GL.glDepthMask (GL.GL_TRUE)
 		
 		if not self.is_picking:
-			GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0);
-			GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.render_fbo.bind);
-			GL.glDrawBuffer(GL.GL_BACK);
+			GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0)
+			GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.render_fbo.bind)
+			GL.glDrawBuffer(GL.GL_BACK)
 			GL.glBlitFramebuffer(0, 0, self.width, self.height, 0, 0, self.width, self.height, GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
 		
 		self.is_picking = False
@@ -364,9 +364,9 @@ class AppOgl(OpenGLFrame):
 			
 	def update_object_indexes(self):
 		for index, object in enumerate(self.opengl_objects):
-			r = (index & 0x000000FF) >>  0;
-			g = (index & 0x0000FF00) >>  8;
-			b = (index & 0x00FF0000) >> 16;
+			r = (index & 0x000000FF) >>  0
+			g = (index & 0x0000FF00) >>  8
+			b = (index & 0x00FF0000) >> 16
 			object.encoded_object_index = float(r)/255.0, float(g)/255.0, float(b)/255.0, 0.0
 		
 	def add_bsp_mesh(
