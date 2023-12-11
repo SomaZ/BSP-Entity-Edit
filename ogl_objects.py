@@ -184,7 +184,7 @@ class OpenGLMesh():
 		else:
 			vs = numpy.array([0.0 for i in range(self.num_vertices * 4)])
 		GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs) * ctypes.sizeof(ctypes.c_float), vs, GL.GL_STATIC_DRAW)
-		# Describe the normals data layout in the buffer
+		# Describe the tc data layout in the buffer
 		GL.glEnableVertexAttribArray(3)
 		GL.glVertexAttribPointer(3, 4, GL.GL_FLOAT, False,
 								 0, ctypes.c_void_p(0))
@@ -196,7 +196,7 @@ class OpenGLMesh():
 		else:
 			vs = numpy.array([0.0 for i in range(self.num_vertices * 3)])
 		GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs) * ctypes.sizeof(ctypes.c_float), vs, GL.GL_STATIC_DRAW)
-		# Describe the normals data layout in the buffer
+		# Describe the vertex info data layout in the buffer
 		GL.glEnableVertexAttribArray(4)
 		GL.glVertexAttribPointer(4, 4, GL.GL_FLOAT, False,
 								 0, ctypes.c_void_p(0))

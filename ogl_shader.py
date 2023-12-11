@@ -20,16 +20,27 @@ in vec4 vertex_info;
 out vec4 v_color;
 out vec3 v_normal;
 out vec4 v_tcs;
-out float v_info[4];
+flat out vec4 v_info;
 uniform mat4 u_proj_mat;
 uniform mat4 u_view_mat;
 uniform mat4 u_model_mat;
+uniform int u_mode;
+
+vec4 encode_int(in int value)
+{
+	float r = ((value & 0x000000FF) ) / 255.0;
+	float g = ((value & 0x0000FF00) >>  8) / 255.0;
+	float b = ((value & 0x00FF0000) >> 16) / 255.0;
+	return vec4(r, g, b, float(value));
+}
+
 void main()
 {
    gl_Position = u_proj_mat*u_view_mat*u_model_mat*(vec4(position, 1.0));
    v_color = color;
    v_tcs = tcs;
-   v_info = float[4](vertex_info.r, vertex_info.g, vertex_info.b, vertex_info.a);
+   int info[4] = int[4](int(vertex_info.x), int(vertex_info.y), int(vertex_info.z), int(vertex_info.w));
+   v_info = encode_int(info[u_mode]);
    // FIXME: use normal matrix instead of model matrix
    v_normal = mat3(u_model_mat)*vertex_normal;
 }
@@ -60,7 +71,7 @@ fragment_select_shader = """#version 130
 in vec4 v_color;
 in vec3 v_normal;
 in vec4 v_tcs;
-in float v_info[4];
+flat in vec4 v_info;
 uniform int u_mode;
 uniform int u_pick;
 
@@ -68,7 +79,7 @@ out vec4 out_color;
 
 void main()
 {
-	vec3 color = mix(v_color.rgb, vec3(1., .01, 1.), float(u_pick == int(v_info[u_mode])) * 0.5);
+	vec3 color = mix(v_color.rgb, vec3(1., .01, 1.), float(u_pick == int(v_info.w)) * 0.5);
 	
 	vec3 n = normalize(v_normal.xyz);
 	const vec3 test_n = normalize(vec3(-0.4, 0.3, 0.5));
@@ -83,7 +94,7 @@ pick_fragment_shader = """#version 130
 in vec4 v_color;
 in vec3 v_normal;
 in vec4 v_tcs;
-in float v_info[4];
+flat in vec4 v_info;
 uniform vec4 u_line;
 
 out vec4 out_color;
@@ -98,23 +109,14 @@ pick_mode_fragment_shader = """#version 130
 in vec4 v_color;
 in vec3 v_normal;
 in vec4 v_tcs;
-in float v_info[4]; // vert, surface, shader, fog
+flat in vec4 v_info; // vert, surface, shader, fog
 uniform vec4 u_line;
-uniform int u_mode;
 
 out vec4 out_color;
 
-vec4 encode_int(in int value)
-{
-	float r = ((value & 0x000000FF) >>  0) / 255.0;
-	float g = ((value & 0x0000FF00) >>  8) / 255.0;
-	float b = ((value & 0x00FF0000) >> 16) / 255.0;
-	return vec4(r, g, b, 0.0);
-}
-
 void main()
 {
-   out_color = encode_int(int(v_info[u_mode]));
+   out_color = vec4(v_info.rgb, 0.0);
 }
 """
 

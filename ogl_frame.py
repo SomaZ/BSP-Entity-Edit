@@ -222,14 +222,13 @@ class AppOgl(OpenGLFrame):
 		GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.pick_fbo.bind)
 		
 		GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
-		data = GL.glReadPixels(x, self.height - y, 1, 1, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
+		data = GL.glReadPixels(x, self.height - y, 1, 1, GL.GL_RGB, GL.GL_UNSIGNED_BYTE, None)
 		GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
 		
 		GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, 0)
 		GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0)
 		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-		
-		picked_data = data[0] + data[1] * 256 + data[2] * 256*256;
+		picked_data = int.from_bytes(data, "little")
 		if self.mode == "Entities":
 			try:
 				picked_line = self.opengl_objects[picked_data].new_line
@@ -420,12 +419,12 @@ class AppOgl(OpenGLFrame):
 		if vertex_info is not None:
 			new_vertex_info = []
 			for info in vertex_info:
-				new_vertex_info.append(float(info[0]))
-				new_vertex_info.append(float(info[1]))
-				new_vertex_info.append(float(info[2]))
-				new_vertex_info.append(float(info[3]))
+				new_vertex_info.append(info[0])
+				new_vertex_info.append(info[1])
+				new_vertex_info.append(info[2])
+				new_vertex_info.append(info[3])
 		else:
-			new_vertex_info = [-2.0 for _ in range(len(normals)*3)]
+			new_vertex_info = [-2 for _ in range(len(normals)*4)]
 
 		if tc0 is not None and tc1 is not None:
 			new_tcs = []
@@ -469,7 +468,7 @@ class AppOgl(OpenGLFrame):
 					mesh.vertex_data_layers["BSP_FOG_INDEX"].get_indexed(),
 					)
 			else:
-				vertex_info = [(-2.0, -2.0, -2.0, -2.0) for _ in range(len(mesh.indices))]
+				vertex_info = [(-2, -2, -2, -2) for _ in range(len(mesh.indices))]
 
 			if "LightmapUV" in mesh.uv_layers:
 				lightmap_uvs = mesh.uv_layers["LightmapUV"].get_indexed()
