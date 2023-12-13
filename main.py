@@ -142,24 +142,27 @@ def main():
 	root.title("BSP Entity Edit")
 	root.geometry("1200x600")
 	root.minsize(width=800, height=400)
+
+	main_frame = PanedWindow(root)
+	main_frame.pack(fill=BOTH, expand=YES)
 	
 	# frame left
-	tabControl = ttk.Notebook(root)
+	tabControl = ttk.Notebook(main_frame)
 	
-	left_frame = Frame(root, padx=5, pady=5)
-	text_frame = Frame(left_frame, width = 1000, padx=0, pady=0)
+	left_frame = Frame(main_frame, padx=5, pady=5)
+	text_frame = Frame(left_frame, padx=0, pady=0)
 	text = CustomText(text_frame, state='normal', wrap='word', pady=2, padx=3, undo=True)
 	linenumbers = TextLineNumbers(text_frame, width=30)
 	linenumbers.attach(text)
-	linenumbers.pack(side="left", fill=Y, expand=YES)
+	linenumbers.pack(side="left", fill=Y, expand=NO)
 	text.pack(fill=BOTH, expand=YES)
 	text.bind("<<Change>>", linenumbers.on_txt_change)
 	text.bind("<Configure>", linenumbers.on_txt_change)
 	text.focus_set()
 	
-	data_frame_shaders = Data_frame(root, SHADER_VARIABLES)
-	data_frame_fogs = Data_frame(root, FOG_VARIABLES)
-	data_frame_surfaces = Data_frame(root, SURFACE_VARIABLES)
+	data_frame_shaders = Data_frame(main_frame, SHADER_VARIABLES)
+	data_frame_fogs = Data_frame(main_frame, FOG_VARIABLES)
+	data_frame_surfaces = Data_frame(main_frame, SURFACE_VARIABLES)
 	
 	tabControl.add(left_frame, text="Entities")
 	tabControl.add(data_frame_shaders.frame, text="Shaders")
@@ -167,7 +170,7 @@ def main():
 	tabControl.add(data_frame_surfaces.frame, text="Surfaces")
 	
 	# frame right
-	right_frame = LabelFrame(root, text="Map Render", padx=5, pady=5)
+	right_frame = Frame(main_frame, padx=5, pady=5)
 	model_frame = ogl_frame.main(
 		right_frame,
 		text,
@@ -196,15 +199,12 @@ def main():
 	render_menu.main(root, menubar, model_frame)
 	help_menu.main(root, text, menubar)
 	
-	text_frame.grid(column=0, row=0, sticky=(N, S, W), padx=1, pady=1)
+	text_frame.grid(column=0, row=0, sticky=(N, S, W, E), padx=1, pady=1)
 	btn.grid(column=0, row=1, sticky=(S, E, W), padx=1, pady=1)
-	tabControl.grid(column=0, row=0, sticky=(N, S, W), padx=1, pady=1)
-	right_frame.grid(column=1, row=0, sticky=(N, S, E), padx=1, pady=1)
+	main_frame.add(tabControl)
+	main_frame.add(right_frame)
 	model_frame.grid(column=0, row=0, sticky=(N, S, E, W), padx=1, pady=1)
 	
-	root.columnconfigure(0, weight=4)
-	root.columnconfigure(1, weight=20)
-	root.rowconfigure(0, weight=1)
 	left_frame.columnconfigure(0, weight=1)
 	left_frame.rowconfigure(0, weight=1)
 	right_frame.columnconfigure(0, weight=1)
