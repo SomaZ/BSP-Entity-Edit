@@ -59,7 +59,8 @@ class AppOgl(OpenGLFrame):
 	
 	def initgl(self):
 
-		self.state = OpenGLStateManager(0, 0, self.width, self.height)
+		if not hasattr(self, "state"):
+			self.state = OpenGLStateManager(0, 0, self.width, self.height)
 		
 		GL.glEnable(GL.GL_PROGRAM_POINT_SIZE)
 		if not hasattr(self, "shaders"):
