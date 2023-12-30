@@ -44,6 +44,7 @@ class Data_frame():
         frame.rowconfigure(1, weight=1)
 
         self.frame = frame
+        self.focus = listbox
         self.listbox = listbox
         self.btn_apply = btn_apply
         self.btn_discard = btn_discard
@@ -61,3 +62,6 @@ class Data_frame():
                 setattr(data, variable.att_name, bytes(self.entries[entry].get(), "latin-1"))
                 continue
             setattr(data, variable.att_name, var_t(self.entries[entry].get()))
+
+if __name__ == "__main__":
+	print("Please run 'main.py'")

@@ -3,7 +3,7 @@ from tkinter import *
 from tkinter.filedialog import *
 from tkinter.messagebox import *
 
-class render_settings():
+class Render_interface():
 	def __init__(self, opengl_frame):
 		self.opengl_frame = opengl_frame
 
@@ -21,7 +21,7 @@ class render_settings():
 
 def main(root, menubar, opengl_frame):
 	filemenu = Menu(menubar)
-	settings = render_settings(opengl_frame)
+	settings = Render_interface(opengl_frame)
 	filemenu.add_command(label="No MSAA", command=settings.set_msaa_0)
 	filemenu.add_command(label="2xMSAA", command=settings.set_msaa_2)
 	filemenu.add_command(label="4xMSAA", command=settings.set_msaa_4)

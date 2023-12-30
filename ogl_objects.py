@@ -37,11 +37,12 @@ def m_scale(xyz):
 		[0,0,0,1]])
 
 class OpenGLObject():
-	def __init__(self, mesh, position, rotation, scale):
+	def __init__(self, mesh, position, rotation, scale, cast_shadow):
 		self.mesh = mesh
 		self.position = position
 		self.rotation = rotation
 		self.scale = scale
+		self.cast_shadow = cast_shadow
 		
 		rotation_m = (
 			Rz(rotation[2]) * 
@@ -131,6 +132,7 @@ class OpenGLMesh():
 		self.render_type = GL.GL_POINTS
 		self.blend = blend
 		self.name = name
+		self.center_radius = ([0.0, 0.0, 0.0], 120.0)
 		
 		# Create a new VAO (Vertex Array Object) and bind it
 		self.vertex_array_object = GL.glGenVertexArrays(1)
@@ -195,6 +197,7 @@ class OpenGLMesh():
 			vs = vertex_info
 		else:
 			vs = numpy.array([0.0 for i in range(self.num_vertices * 3)])
+		self.vertex_info = vs
 		GL.glBufferData(GL.GL_ARRAY_BUFFER, len(vs) * ctypes.sizeof(ctypes.c_float), vs, GL.GL_STATIC_DRAW)
 		# Describe the vertex info data layout in the buffer
 		GL.glEnableVertexAttribArray(4)
@@ -219,12 +222,28 @@ class OpenGLMesh():
 		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, 0)
 		GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, 0)
 
+	def update_surface_data(self, surface_index, shader, fog):
+		for i in range(int(len(self.vertex_info)/4)):
+			#vert,surface,shader,fog
+			#vert = self.vertex_info[4 * i + 0]
+			surface = self.vertex_info[4 * i + 1]
+			#shader = self.vertex_info[4 * i + 2]
+			#fog = self.vertex_info[4 * i + 3]
+			if int(surface) != surface_index:
+				continue
+			self.vertex_info[4 * i + 2] = float(shader)
+			self.vertex_info[4 * i + 3] = float(fog)
+		#GL.glBindVertexArray(self.vertex_array_object)
+		GL.glBindVertexArray(0)
+		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.info_buffer)
+		GL.glBufferSubData(GL.GL_ARRAY_BUFFER, 0, len(self.vertex_info) * ctypes.sizeof(ctypes.c_float), self.vertex_info)
+		#GL.glBindVertexArray(0)
+		GL.glBindBuffer(GL.GL_ARRAY_BUFFER, 0)
 
 	def __del__(self):
 		GL.glDeleteVertexArrays(1, [self.vertex_array_object])
 		GL.glDeleteBuffers(6, [self.vertex_buffer, self.index_buffer, self.normal_buffer, self.color_buffer, self.tc_buffer, self.info_buffer])
-		
-		
+
 box_verts = ((-8.0, -8.0, -8.0),
          (-8.0, -8.0, 8.0),
          (-8.0, 8.0, -8.0),

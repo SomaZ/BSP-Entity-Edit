@@ -5,9 +5,13 @@ import numpy
 import ctypes
 import types
 import sys
+from dataclasses import dataclass
 from pyopengltk import OpenGLFrame
+from ogl_camera import Camera
 from ogl_objects import *
 from ogl_fbo import FBO
+from ogl_baking import Baking_data
+from ogl_state import OpenGLState, OpenGLStateManager
 import ogl_shader
 if sys.version_info[0] > 2:
 	import tkinter as tk
@@ -15,79 +19,53 @@ else:
 	import Tkinter as tk
 
 
-def magnitude(v):
-	return numpy.sqrt(numpy.sum(v ** 2))
+@dataclass
+class Light():
+	origin = [0.0, 0.0, 0.0]
+	color = [1.0, 0.0, 0.0]
+	radius = 300
+	direction = [0.0, 0.0, -1.0]
+	angle = 90
 
-
-def normalize(v):
-	m = magnitude(v)
-	if m == 0:
-		return v
-	return v / m
-					
-					
-def translate(xyz):
-	x, y, z = xyz
-	return numpy.matrix([[1,0,0,x],
-					  [0,1,0,y],
-					  [0,0,1,z],
-					  [0,0,0,1]])
-			
-			
-def normal_from_polar(lat, long):
-	x = numpy.cos(lat) * numpy.sin(long)
-	y = numpy.sin(lat) * numpy.sin(long)
-	z = numpy.cos(long)
-	return -numpy.array((x, y, z))
-
-
-def viewPolar( f, s, u, eye ):
-	M = numpy.matrix(numpy.identity(4))
-	M[:3,:3] = numpy.vstack([f, s, u])
-	T = translate(-numpy.array(eye))
-	return M * T
 
 SHADERMODE = {
 	"Vertices" : 0,
 	"Surfaces" : 1,
 	"Shaders" : 2,
-	"Fogs" : 3
+	"Fogs" : 3,
+	"Lighting" : 1
 }
 
 
 class AppOgl(OpenGLFrame):
-	button_center = (0, 0)
-	key_direction =numpy.array([0.0, 0.0, 0.0])
-	origin = numpy.array([0., 0., 0.])
-	rotation = [0, 0, numpy.deg2rad(90), 0]
-	forward_vec = numpy.array([0., 0., 0.])
-	right_vec = numpy.array([0., 0., 0.])
-	up_vec = numpy.array([0., 0., 0.])
 	
+	camera = Camera()
+	last_clicked_pixel = [0, 0]
 	multisample = 4
+	hdr = False
+	obb = 0
+	gamma = 1.0
+	compensate = 1.0
 	render_fbo = None
 	pick_fbo = None
+	bake_data = None
 
 	mode = "Entities"
 	selected_data = -2
 	
 	opengl_meshes = {}
 	opengl_objects = []
+	opengl_lights = []
 	
 	def initgl(self):
-		GL.glClearColor(0.15, 0.15, 0.15, 1.0)
-		
-		GL.glDepthFunc(GL.GL_LEQUAL)
-		GL.glEnable(GL.GL_DEPTH_TEST)
+
+		self.state = OpenGLStateManager(0, 0, self.width, self.height)
 		
 		GL.glEnable(GL.GL_PROGRAM_POINT_SIZE)
 		if not hasattr(self, "shaders"):
 			self.shaders = {}
 			for shader_name, vertex_shader, fragment_shader in ogl_shader.SHADER_LIST:
 				self.shaders[shader_name] = ogl_shader.SHADER(vertex_shader, fragment_shader)
-		
-		GL.glEnable(GL.GL_CULL_FACE)
-		GL.glCullFace(GL.GL_FRONT)
 		
 		if self.render_fbo is not None:
 			if self.width != self.render_fbo.width or self.height != self.render_fbo.height:
@@ -98,43 +76,70 @@ class AppOgl(OpenGLFrame):
 		else:
 			self.render_fbo = FBO(self.width, self.height, self.multisample)
 			self.pick_fbo = FBO(self.width, self.height, 0)
+			self.bake_data = Baking_data(self.state)
 
+		self.states = {
+			"Default" : OpenGLState(
+				framebuffer=self.render_fbo.bind),
+			"Blend" : OpenGLState(
+				framebuffer=self.render_fbo.bind,
+				blend=True,
+				blend_func=(GL.GL_SRC_ALPHA, GL.GL_ONE),
+				face_culling=False,
+				offset_filling=True,
+				depth_write=False),
+			"Default_pick" : OpenGLState(
+				framebuffer=self.pick_fbo.bind),
+			"Blend_pick" : OpenGLState(
+				framebuffer=self.pick_fbo.bind,
+				face_culling=False),
+		}
+			
 		self.is_picking = False
 		
-	def redraw(self):
-	
-		self.origin += normalize(
-			self.forward_vec * self.key_direction[0] +
-			self.right_vec * self.key_direction[1] +
-			numpy.array([0.0, 0.0, 1.0]) * self.key_direction[2]
-			) * 30.0
+		
+	def redraw(self, force_swapping = False):
+		if not hasattr(self, "shaders"):
+			return
+		new_settings = self.lighting_frame.get_render_settings()
+		self.gamma = new_settings.gamma
+		self.obb = new_settings.overbrightbits
+		self.hdr = new_settings.hdr
+		self.compensate = new_settings.compensate
+		self.light_scale = new_settings.light_scale
 
 		if self.mode == "Entities":
 			shader = self.shaders.get("Vertex_Color")
 		else:
 			shader = self.shaders.get("Vertex_Color_Selection")
+			if self.mode == "Lighting":
+				shader = self.shaders.get("Lightmap_Color")
 
 		if shader is None:
 			return
-		fbo = self.render_fbo.bind
 		if self.is_picking:
-			fbo = self.pick_fbo.bind
 			if self.mode == "Entities":
 				shader = self.shaders["Pick_Object"]
 			else:
 				shader = self.shaders["Pick_Selection"]
-			
-		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, fbo)
-		GL.glUseProgram(shader.program)
-		#clear buffer
+
+		self.state.change_state(
+			self.states["Default_pick"] if self.is_picking else self.states["Default"])
+		self.state.set_viewport(0, 0, self.width, self.height)
 		GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-		self.set_view(shader)
-		self.set_projection(shader, 100.0)
-		
-		GL.glDisable(GL.GL_BLEND)
-		GL.glEnable(GL.GL_CULL_FACE)
-		GL.glDepthMask (GL.GL_TRUE)
-		current_blend = None
+
+		GL.glUseProgram(shader.program)
+		self.camera.update_position()
+		GL.glUniformMatrix4fv(
+			shader.uniform_loc["u_view_mat"],
+			1,
+			GL.GL_FALSE,
+			self.camera.get_view())
+		GL.glUniformMatrix4fv(
+			shader.uniform_loc["u_proj_mat"],
+			1,
+			GL.GL_FALSE,
+			self.camera.get_projection(self.width / self.height))
 		
 		for obj in self.opengl_objects:
 			if obj.hidden:
@@ -144,27 +149,35 @@ class AppOgl(OpenGLFrame):
 				if not obj.mesh.name.startswith("*") or obj.mesh.blend:
 					continue
 				
-			if obj.mesh.blend and current_blend is None:
-				if not self.is_picking:
-					GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE)
-					GL.glEnable(GL.GL_BLEND)
-					GL.glDepthMask (GL.GL_FALSE)
-					
-				GL.glDisable(GL.GL_CULL_FACE)
-				current_blend = obj.mesh.blend
-			elif obj.mesh.blend is None and current_blend is not None:
-				GL.glDisable(GL.GL_BLEND)
-				GL.glEnable(GL.GL_CULL_FACE)
-				GL.glDepthMask (GL.GL_TRUE)
-				current_blend = obj.mesh.blend
+			if obj.mesh.blend:
+				if self.is_picking:
+					self.state.change_state(self.states["Blend_pick"])
+				else:
+					self.state.change_state(self.states["Blend"])
+			else:
+				if self.is_picking:
+					self.state.change_state(self.states["Default_pick"])
+				else:
+					self.state.change_state(self.states["Default"])
 				
 			GL.glUniformMatrix4fv(shader.uniform_loc["u_model_mat"], 1, GL.GL_FALSE, obj.modelMatrix)
 			if (shader.uniform_loc["u_line"] != -1):
 				GL.glUniform4f(shader.uniform_loc["u_line"], *obj.encoded_object_index)
+			if (shader.uniform_loc["u_gamma"] != -1):
+				GL.glUniform1f(shader.uniform_loc["u_gamma"], self.gamma)
+			if (shader.uniform_loc["u_obb"] != -1):
+				GL.glUniform1f(shader.uniform_loc["u_obb"], self.obb)
+			if (shader.uniform_loc["u_compensate"] != -1):
+				GL.glUniform1f(shader.uniform_loc["u_compensate"], self.compensate)
+			if (shader.uniform_loc["u_lightScale"] != -1):
+				GL.glUniform1f(shader.uniform_loc["u_lightScale"], self.light_scale)
 			if (shader.uniform_loc["u_pick"] != -1):
 				GL.glUniform1i(shader.uniform_loc["u_pick"], self.selected_data)
 			if (shader.uniform_loc["u_mode"] != -1):
 				GL.glUniform1i(shader.uniform_loc["u_mode"], SHADERMODE[self.mode])
+			if (shader.uniform_loc["u_lightmap"] != -1):
+				GL.glUniform1i(shader.uniform_loc["u_lightmap"], 0)
+				GL.glBindTexture(GL.GL_TEXTURE_2D, self.bake_data.framebuffer_texture)
 			
 			if obj.selected and not self.is_picking:
 				if obj.mesh.blend:
@@ -177,13 +190,8 @@ class AppOgl(OpenGLFrame):
 			else:
 				obj.draw()
 
-		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 		GL.glBindVertexArray(0)
 		GL.glUseProgram(0)
-		GL.glRasterPos2f(-0.99, -0.99)
-		GL.glDisable(GL.GL_BLEND)
-		GL.glEnable(GL.GL_CULL_FACE)
-		GL.glDepthMask (GL.GL_TRUE)
 		
 		if not self.is_picking:
 			GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0)
@@ -191,10 +199,32 @@ class AppOgl(OpenGLFrame):
 			GL.glDrawBuffer(GL.GL_BACK)
 			GL.glBlitFramebuffer(0, 0, self.width, self.height, 0, 0, self.width, self.height, GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
 		
+			if self.mode == "Lighting":
+				GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.bake_data.bake_fbo.bind)
+				GL.glBlitFramebuffer(0, 0, 2048, 2048, 0, 0, self.width//4, self.width//4, GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
+
+			GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.state.state.framebuffer)
 		self.is_picking = False
+
+		if force_swapping:
+			self.tkSwapBuffers()
+
+	def update_lightmap_bake(self, test = None):
+		self.bake_data.bake_lightmaps(
+			self.opengl_objects,
+			self.opengl_lights,
+			self.lighting_frame.get_bake_settings(),
+			self.redraw)
+		
+	def clear_lightmap_bake(self):
+		self.bake_data.clear_lightmaps()
 
 	def set_selected_data(self, data):
 		self.selected_data = data
+
+	def update_shader_and_fog_data(self, surface, shader = 0, fog = -1):
+		for mesh in self.opengl_meshes:
+			self.opengl_meshes[mesh].update_surface_data(surface, shader, fog)
 
 	def set_mode(self, mode):
 		self.mode = mode
@@ -208,7 +238,50 @@ class AppOgl(OpenGLFrame):
 			self.render_fbo = FBO(self.width, self.height, self.multisample)
 		except Exception:
 			self.render_fbo = FBO(self.width, self.height, 0)
+
+	def trace_mouse_location(self, x, y):
+		self.is_picking = True
+		self.redraw()
+
+		GL.glFlush()
+		GL.glFinish()
 		
+		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.pick_fbo.bind)
+		GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.pick_fbo.bind)
+		GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.pick_fbo.bind)
+		
+		depth = GL.glReadPixels(x, self.height - y, 1, 1, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
+		
+		GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, 0)
+		GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0)
+		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+
+		half_clip = numpy.array([ x / self.width, (self.height - y) / self.height, depth[0][0], 1.0])
+		clip_position = half_clip * 2.0 - numpy.array([1.0, 1.0, 1.0, 1.0])
+
+		view_mat = self.camera.get_view()
+		proj_mat = self.camera.get_projection(self.width / self.height)
+		inverse_proj = numpy.linalg.inv(numpy.transpose(proj_mat))
+		view_position = numpy.matmul(inverse_proj, clip_position)
+		view_position = view_position / view_position[3]
+
+		inverse_view = numpy.linalg.inv(numpy.transpose(view_mat))
+
+		position = numpy.array(numpy.matmul(inverse_view, view_position))[0]
+		
+		if self.mode == "Entities":
+			for object in self.opengl_objects:
+				if object.selected and not object.mesh.name.startswith("*0"):
+					position -= numpy.array([*object.mesh.center_radius[0], 0.0])
+					break
+			position = numpy.round(position, 1)
+			self.set_selected_object_position(position[:3])
+			self.update_selected_object_origin_text(position[:3])
+		else:
+			position = numpy.round(position, 1)
+
+		return position
+
 	def get_current_ent_line(self, x, y):
 		self.is_picking = True
 		
@@ -230,13 +303,13 @@ class AppOgl(OpenGLFrame):
 		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 		picked_data = int.from_bytes(data, "little")
 		if self.mode == "Entities":
+			self.unselect_all()
 			try:
 				picked_line = self.opengl_objects[picked_data].new_line
 			except:
 				return
-			self.unselect_all()
 			self.opengl_objects[picked_data].selected = True
-			
+			# return to text instead of setting text here
 			self.text.tag_remove("found", '1.0', END)
 			idx = self.text.search("}", str(picked_line + 1)+".0", nocase=0, stopindex=END)
 			try:
@@ -246,13 +319,17 @@ class AppOgl(OpenGLFrame):
 			self.text.tag_add('found', str(picked_line + 1)+".0", str(int(line)+1)+"."+char)
 			self.text.tag_config('found', foreground='white', background='green')
 			self.text.see(str(picked_line + 1)+".0")
+			self.text.mark_set(INSERT, str(picked_line + 1)+".0")
+			self.text.mark_unset(INSERT)
 		else :
 			MODE_PICK = {
 				"Shaders" : self.shader_listbox,
 				"Fogs" : self.fogs_listbox,
-				"Surfaces" : self.surfaces_listbox
+				"Surfaces" : self.surfaces_listbox,
+				"Lighting" : self.surfaces_listbox,
 			}
 			self.set_selected_data(picked_data)
+			# return to listbox instead of setting data here
 			listbox = MODE_PICK[self.mode]
 			listbox.selection_clear(0, END)
 			listbox.select_set(picked_data)
@@ -273,53 +350,24 @@ class AppOgl(OpenGLFrame):
 		for obj in self.opengl_objects:
 			obj.hidden = False
 
-	def set_view(self, shader):
-		F = normal_from_polar(self.rotation[1], self.rotation[2])
-		self.forward_vec = normalize(F)
-		U = (0.0, 0.0, 1.0)
-		self.right_vec = normalize(numpy.cross(self.forward_vec, U))
-		self.up_vec = numpy.cross(self.right_vec, self.forward_vec)
-		v = viewPolar(
-			self.forward_vec,
-			self.right_vec,
-			self.up_vec,
-			self.origin)
-		GL.glUniformMatrix4fv(shader.uniform_loc["u_view_mat"], 1, GL.GL_FALSE, numpy.transpose(v))
-
-
-	def set_projection(self, shader, fov_y):
-		znear = 4.
-		zfar = 40000.
-		depth = zfar - znear
-		height = 2.0 * (znear * numpy.tan(numpy.radians(0.5 * fov_y)))
-		width = height * self.width / self.height
-		
-		p = numpy.array(
-			(
-				(0., 2.0 * znear / width, 0, 0),
-				(0., 0, 2.0 * znear / height, 0),
-				((zfar + znear) / depth, 0, 0, (-2.0 * zfar * znear) / depth),
-				(1., 0, 0, 0)
-			),
-			numpy.float32
-		)
-		GL.glUniformMatrix4fv(shader.uniform_loc["u_proj_mat"], 1, GL.GL_FALSE, numpy.transpose(p))
-
-
 	def add_gl_object(self, name, bsp_object):
 		if bsp_object is None:
 			return
 		mesh = None
+		cast_shadow = False
 		if bsp_object.mesh_name == "worldspawn":
 			mesh = self.opengl_meshes.get("*0")
-			print(mesh, "*0")
+			cast_shadow = True
 		else:
 			mesh = self.opengl_meshes.get(
 				bsp_object.mesh_name)
-			print(mesh, bsp_object.mesh_name)
+			if "_cs" in bsp_object.custom_parameters:
+				if bsp_object.custom_parameters["_cs"] == "1":
+					cast_shadow = True
+			if bsp_object.mesh_name == "*0":
+				cast_shadow = True
 			
 		if mesh is None:
-			print(bsp_object.name)
 			new_mesh_name = ""
 			colors = None
 			if bsp_object.name.startswith("info_n") or bsp_object.name.startswith("light"):
@@ -352,9 +400,31 @@ class AppOgl(OpenGLFrame):
 			mesh,
 			bsp_object.position,
 			rotation,
-			bsp_object.scale
+			bsp_object.scale,
+			cast_shadow
 			)
 		new_object.new_line = int(bsp_object.custom_parameters["first_line"])
+
+		if bsp_object.custom_parameters["classname"] == "light":
+			new_light = Light()
+			new_light.origin = bsp_object.position
+			try:
+				new_light.radius = float(bsp_object.custom_parameters["light"]) * (7500.0 / 255.0)
+			except:
+				new_light.radius = 300.0 * (7500.0 / 255.0)
+			try:
+				new_light.color = list(map(float, bsp_object.custom_parameters["_color"]))
+			except:
+				new_light.color = [1.0, 1.0, 1.0]
+			if "scale" in bsp_object.custom_parameters:
+				new_light.radius *= float(bsp_object.custom_parameters["scale"])
+			if new_light.radius < 0.0:
+				new_light.radius = -new_light.radius
+				new_light.color[0] *= -1.0
+				new_light.color[1] *= -1.0
+				new_light.color[2] *= -1.0
+				print(new_light.__dict__)
+			self.opengl_lights.append(new_light)
 		
 		if mesh.blend is None:
 			self.opengl_objects.insert(0, new_object)
@@ -378,7 +448,8 @@ class AppOgl(OpenGLFrame):
 			blend=None,
 			vertex_info=None,
 			tc0=None,
-			tc1=None):
+			tc1=None,
+			center_radius=([0.0, 0.0, 0.0], 120.0)):
 
 		new_indices = []
 		mode = GL.GL_TRIANGLES
@@ -428,11 +499,11 @@ class AppOgl(OpenGLFrame):
 
 		if tc0 is not None and tc1 is not None:
 			new_tcs = []
-			for tc in zip(tc0, tc1):
-				new_tcs.append(tc[0][0])
-				new_tcs.append(tc[0][1])
-				new_tcs.append(tc[1][0])
-				new_tcs.append(tc[1][1])
+			for st, lm in zip(tc0, tc1):
+				new_tcs.append(st[0])
+				new_tcs.append(st[1])
+				new_tcs.append(lm[0])
+				new_tcs.append(lm[1])
 		else:
 			new_tcs = [0.0 for _ in range(len(normals)*4)]
 
@@ -449,6 +520,7 @@ class AppOgl(OpenGLFrame):
 				)
 			)
 		self.opengl_meshes[name].render_type = mode
+		self.opengl_meshes[name].center_radius = center_radius
 		
 	def add_bsp_models(self, bsp_models):
 		for index, mesh in enumerate(bsp_models):
@@ -475,6 +547,19 @@ class AppOgl(OpenGLFrame):
 			else:
 				lightmap_uvs = mesh.uv_layers["UVMap"].get_indexed()
 
+			mins = numpy.array([99999999.9, 99999999.9, 99999999.9])
+			maxs = numpy.array([-99999999.9, -99999999.9, -99999999.9])
+
+			positions = mesh.positions.get_indexed()
+			mins[0] = min([pos[0] for pos in positions])
+			mins[1] = min([pos[1] for pos in positions])
+			mins[2] = min([pos[2] for pos in positions])
+			maxs[0] = max([pos[0] for pos in positions])
+			maxs[1] = max([pos[1] for pos in positions])
+			maxs[2] = max([pos[2] for pos in positions])
+			center = mins + ((maxs - mins) * 0.5)
+			radius = max((maxs - mins) * 0.5)
+
 			self.add_bsp_mesh(
 				mesh.name,
 				mesh.positions.get_indexed(),
@@ -484,7 +569,8 @@ class AppOgl(OpenGLFrame):
 				blend,
 				vertex_info,
 				mesh.uv_layers["UVMap"].get_indexed(),
-				lightmap_uvs
+				lightmap_uvs,
+				(center, radius)
 				)
 
 	def pick_object_per_line(self, line):
@@ -500,13 +586,34 @@ class AppOgl(OpenGLFrame):
 
 		if picked_obj is None:
 			return
-		self.unselect_all()
+		self.unselect_all(line)
 		picked_obj.selected = True
 		
 	def set_selected_object_position(self, vector):
 		for object in self.opengl_objects:
 			if object.selected:
+				if object.mesh.name.startswith("*0"):
+					return
 				object.set_position(vector)
+				return
+			
+	def update_selected_object_origin_text(self, vector):
+		for object in self.opengl_objects:
+			if object.selected:
+				if object.mesh.name.startswith("*0"):
+					return
+				obj_end = self.text.search('}', str(object.new_line + 1)+".0", nocase=0, stopindex=END)
+				idx = self.text.search('"origin"', str(object.new_line + 1)+".0", nocase=0, stopindex=obj_end)
+				new_origin = ' "{} {} {}"'.format(*vector)
+				try:
+					line, char = idx.split(".")
+				except:
+					self.text.insert(str(object.new_line + 2)+".0", '"origin" ' + new_origin+"\n")
+					self.text.needs_rebuild = True
+					self.text.add_rebuild_event()
+					return
+				self.text.insert(line + ".8", new_origin)
+				self.text.delete(line + "." + str(8+len(new_origin)), line + ".8" + " lineend")
 				return
 				
 	def set_selected_object_rotation(self, vector):
@@ -519,7 +626,6 @@ class AppOgl(OpenGLFrame):
 			if object.selected:
 				if object.mesh.name.startswith("*"):
 					return
-				print("set_rotation call")
 				object.set_rotation(rotation)
 				return
 				
@@ -528,99 +634,87 @@ class AppOgl(OpenGLFrame):
 			if object.selected:
 				if object.mesh.name.startswith("*"):
 					return
-				print("set_scale call")
 				object.set_scale(vector)
 				return
 
 	def clear_objects(self):
-		self.opengl_objects.clear()	
+		self.opengl_lights.clear()
+		self.opengl_objects.clear()
 	
 	def clear_meshes(self):
 		self.opengl_meshes.clear()
 		
 	def __del__(self):
-		self.opengl_objects.clear()  
+		self.opengl_lights.clear()
+		self.opengl_objects.clear()
 		self.opengl_meshes.clear()
 		
-	def append(self, text, shader_listbox, fogs_listbox, surfaces_listbox):
+	def append(self, text, shader_listbox, fogs_listbox, surfaces_listbox, lighting_frame):
 		self.text = text
 		self.shader_listbox = shader_listbox
 		self.fogs_listbox = fogs_listbox
 		self.surfaces_listbox = surfaces_listbox
-		
-	def stop_movement(self):
-		self.key_direction = numpy.array([0.0, 0.0, 0.0])
+		self.lighting_frame = lighting_frame
 
-def move_fwd(event):
-	event.widget.key_direction[0] = 1.0
+	def click_event(self, event):
+		self.last_clicked_pixel = (event.x, event.y)
+		self.get_current_ent_line(event.x, event.y)
 
-def move_lft(event):
-	event.widget.key_direction[1] = -1.0
+	def drag_event(self, event):
+		distance = numpy.sqrt(
+			pow(event.x - self.last_clicked_pixel[0], 2.0) + 
+			pow(event.x - self.last_clicked_pixel[0], 2.0))
+		if distance < 7.0:
+			return
+		for object in self.opengl_objects:
+			if object.selected:
+				print(object.position, object.mesh.name)
+				view_mat = numpy.transpose(self.camera.get_view())
+				proj_mat = numpy.transpose(self.camera.get_projection(self.width / self.height))
 
-def move_rgt(event):
-	event.widget.key_direction[1] = +1.0
+				position = numpy.array(object.position) + numpy.array(object.mesh.center_radius[0])
+				obj_view_pos = numpy.array(numpy.matmul(view_mat, numpy.array([*position, 1.0])))[0]
+				obj_clip_pos = numpy.array(numpy.matmul(proj_mat, obj_view_pos))
+				obj_clip_pos /= obj_clip_pos[3]
 
-def move_bck(event):
-	event.widget.key_direction[0] = -1.0
+				half_clip = numpy.array([ event.x / self.width, (self.height - event.y) / self.height, obj_clip_pos[2] * 0.5 + 0.5, 1.0])
+				clip_position = half_clip * 2.0 - numpy.array([1.0, 1.0, 1.0, 1.0])
 
-def move_up(event):
-	event.widget.key_direction[2] = 1.0
+				inverse_proj = numpy.linalg.inv(proj_mat)
+				view_position = numpy.matmul(inverse_proj, clip_position)
+				view_position = view_position / view_position[3]
 
-def move_down(event):
-	event.widget.key_direction[2] = -1.0
+				inverse_view = numpy.linalg.inv(view_mat)
 
-def move_stop_fwd(event):
-	event.widget.key_direction[0] = 0.0
+				position = numpy.array(numpy.matmul(inverse_view, view_position))[0]
+				position -= numpy.array([*object.mesh.center_radius[0], 0.0])
+				position = numpy.round(position, 1)
 
-def move_stop_side(event):
-	event.widget.key_direction[1] = 0.0
-	
-def move_stop_up(event):
-	event.widget.key_direction[2] = 0.0
+				if self.mode == "Entities":
+					self.set_selected_object_position(position[:3])
+					self.update_selected_object_origin_text(position[:3])
 
-def m1click(event):
-	event.widget.get_current_ent_line(event.x, event.y)
+				return position
+			
+	def jump_to_selected_object(self, event = None):
+		for object in self.opengl_objects:
+			if object.selected:
+				new_pos = object.position + object.mesh.center_radius[0]
+				new_pos -= self.camera.forward_vec * object.mesh.center_radius[1]
+				self.camera.set_position(new_pos)
 
-def m3click(event):
-	event.widget.button_center = (event.x, event.y)
-
-def m3drag(event):
-	event.widget.rotation = [
-		1.0,
-		event.widget.rotation[1] + (-event.widget.button_center[0] + event.x) * 0.003,
-		event.widget.rotation[2] + (-event.widget.button_center[1] + event.y) * 0.003,
-		0]
-	event.widget.rotation[2] = min(event.widget.rotation[2], numpy.deg2rad(175.0))
-	event.widget.rotation[2] = max(event.widget.rotation[2], numpy.deg2rad(5.0))
-	event.widget.button_center = (event.x, event.y)
-
-def mwheel(event):
-	event.widget.origin += event.delta * 0.5 * event.widget.forward_vec
-
-def main(root, text, shader_listbox, fog_listbox, surface_listbox):
+def main(root, text, shader_listbox, fog_listbox, surface_listbox, light_frame):
 	app = AppOgl(root, width = 2000, height = 400)
 	app.animate = 8
 	app.after(200, app.printContext)
-	app.append(text, shader_listbox, fog_listbox, surface_listbox)
-	
-	app.bind("<KeyPress-w>", move_fwd)
-	app.bind("<KeyRelease-w>", move_stop_fwd)
-	app.bind("<KeyPress-s>", move_bck)
-	app.bind("<KeyRelease-s>", move_stop_fwd)
-	app.bind("<KeyPress-a>", move_lft)
-	app.bind("<KeyRelease-a>", move_stop_side)
-	app.bind("<KeyPress-d>", move_rgt)
-	app.bind("<KeyRelease-d>", move_stop_side)
+	app.append(text, shader_listbox, fog_listbox, surface_listbox, light_frame)
+	app.camera.bind_camera_ctrl(app)
+
 	app.bind("h", app.hide_selected)
 	root.bind_all("<Alt-h>", app.unhide_all)
-	app.bind("<KeyPress-space>", move_up)
-	app.bind("<KeyRelease-space>", move_stop_up)
-	app.bind("<KeyPress-c>", move_down)
-	app.bind("<KeyRelease-c>", move_stop_up)
-	app.bind("<B3-Motion>", m3drag)
-	app.bind("<Button-3>", m3click)
-	app.bind("<Button-1>", m1click)
-	app.bind("<MouseWheel>", mwheel)
+	app.bind("j", app.jump_to_selected_object)
+	app.bind("<B1-Motion>", app.drag_event)
+	app.bind("<Button-1>", app.click_event)
 	app.bind('<Escape>', app.unselect_all)
 	
 	return app

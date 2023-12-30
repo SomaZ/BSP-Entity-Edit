@@ -127,8 +127,10 @@ class File():
 			)
 
 			bsp = BSP(vfs, import_settings)
+			bsp.lightmap_size = bsp.compute_packed_lightmap_size()
 
 			self.gl.clear_meshes()
+			self.gl.clear_lightmap_bake()
 			self.gl.add_bsp_models(deepcopy(bsp).get_bsp_models())
 
 			lump = bsp.lumps["entities"]
@@ -288,8 +290,8 @@ def main(root, text, menubar, opengl_frame, refresh_btn, shader_frame, fog_frame
 	filemenu.add_command(label="Quit", command=objFile.quit)
 	menubar.add_cascade(label="File", menu=filemenu)
 	root.config(menu=menubar)
-	
-	refresh_btn.bind("<Button-1>", objFile.reload_entities)
+	opengl_frame.unselect_all()
+	refresh_btn.configure(command=objFile.reload_entities)
 	text.bind("<<Current_Line_Changed>>", objFile.pick_object_per_current_line)
 	text.bind("<<Rebuild>>", objFile.reload_entities)
 	text.bind("<<Origin_Modified>>", objFile.update_position_current_object)

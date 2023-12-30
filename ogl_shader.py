@@ -5,18 +5,39 @@ UNIFORM_LIST = [
 	"u_model_mat",
 	"u_view_mat",
 	"u_proj_mat",
+	"u_gamma",
+	"u_compensate",
+	"u_obb",
+	"u_lightScale",
 	"u_color",
 	"u_line",
 	"u_pick",
 	"u_mode",
+	"u_position_radius",
+	"u_color_radius",
+	"u_positionmap",
+	"u_normalsmap", # for stored vertex normals
+	"u_lightmap",
+	"u_cubemap"
 ]
 
-vertex_shader = """#version 130 
+SAMPLER_LIST = {
+	"u_positionmap": 0,
+	"u_normalsmap": 1,
+	"u_lightmap": 0,
+	"u_cubemap":2
+}
+
+SHADER_HEADER = """#version 130
+"""
+
+vertex_shader = """
 in vec3 position;
 in vec4 color;
 in vec3 vertex_normal;
 in vec4 tcs;
 in vec4 vertex_info;
+out vec4 ws_position;
 out vec4 v_color;
 out vec3 v_normal;
 out vec4 v_tcs;
@@ -36,6 +57,7 @@ vec4 encode_int(in int value)
 
 void main()
 {
+   ws_position = u_model_mat*(vec4(position, 1.0));
    gl_Position = u_proj_mat*u_view_mat*u_model_mat*(vec4(position, 1.0));
    v_color = color;
    v_tcs = tcs;
@@ -46,7 +68,7 @@ void main()
 }
 """
 
-fragment_shader = """#version 130
+fragment_shader = """
 in vec4 v_color;
 in vec3 v_normal;
 in vec4 v_tcs;
@@ -67,7 +89,43 @@ void main()
 }
 """
 
-fragment_select_shader = """#version 130
+lightmap_fragment_shader = """
+in vec4 v_color;
+in vec3 v_normal;
+in vec4 v_tcs;
+uniform vec4 u_color;
+uniform sampler2D u_lightmap;
+uniform float u_gamma;
+uniform float u_compensate;
+uniform float u_obb;
+uniform float u_lightScale;
+
+out vec4 out_color;
+
+void main()
+{
+	vec3 color = max(texture(u_lightmap, v_tcs.zw).rgb * u_lightScale, vec3(0.0));
+
+	color = pow(color, vec3(1.0 / u_gamma));
+
+	float max_v = max(color.r, max(color.g, color.b));
+	if (max_v > 1.0)
+	{
+		color /= max_v;
+	}
+
+	color *= (pow(2.0, u_obb)) / u_compensate;
+	
+	vec3 n = normalize(v_normal.xyz);
+	const vec3 test_n = normalize(vec3(-0.4, 0.3, 0.5));
+	float shade = clamp(dot(test_n, n) * 0.15, -0.15, 0.15) + 0.85;
+	
+	out_color.rgb = clamp(color * shade, 0.0, 1.0);
+	out_color.a = 1.0;
+}
+"""
+
+fragment_select_shader = """
 in vec4 v_color;
 in vec3 v_normal;
 in vec4 v_tcs;
@@ -90,7 +148,7 @@ void main()
 }
 """
 
-pick_fragment_shader = """#version 130
+pick_fragment_shader = """
 in vec4 v_color;
 in vec3 v_normal;
 in vec4 v_tcs;
@@ -105,7 +163,7 @@ void main()
 }
 """
 
-pick_mode_fragment_shader = """#version 130
+pick_mode_fragment_shader = """
 in vec4 v_color;
 in vec3 v_normal;
 in vec4 v_tcs;
@@ -125,6 +183,7 @@ SHADER_LIST = [
 	["Vertex_Color_Selection", vertex_shader, fragment_select_shader],
 	["Pick_Object", vertex_shader, pick_fragment_shader],
 	["Pick_Selection", vertex_shader, pick_mode_fragment_shader],
+	["Lightmap_Color", vertex_shader, lightmap_fragment_shader]
 ]
 
 class SHADER():
@@ -132,11 +191,19 @@ class SHADER():
 		self.uniform_loc = {}
 		self.program = OpenGL.GL.shaders.compileProgram(
 				self.compileShader(vertex_shader, GL.GL_VERTEX_SHADER),
-				self.compileShader(fragment_shader, GL.GL_FRAGMENT_SHADER)
+				self.compileShader(fragment_shader, GL.GL_FRAGMENT_SHADER),
+				validate = False
 				)
 		for uniform in UNIFORM_LIST:
 			self.uniform_loc[uniform] = GL.glGetUniformLocation(self.program, self.bytestr(uniform))
+		GL.glUseProgram(self.program)
+		for uniform in UNIFORM_LIST:
+			if uniform in SAMPLER_LIST and self.uniform_loc[uniform] > -1:
+				GL.glUniform1i(self.uniform_loc[uniform], SAMPLER_LIST[uniform])
+		GL.glUseProgram(0)
 
+		self.program.check_validate()
+		
 
 	# Avoiding glitches in pyopengl-3.0.x and python3.4
 	def bytestr(self, s):
@@ -158,8 +225,10 @@ class SHADER():
 			source = [source.decode('utf-8')]
 
 		shader = GL.glCreateShader(shaderType)
+		source = [SHADER_HEADER + source[0]]
 		GL.glShaderSource(shader, source)
 		GL.glCompileShader(shader)
+
 		result = GL.glGetShaderiv(shader, GL.GL_COMPILE_STATUS)
 		if not(result):
 			# TODO: this will be wrong if the user has

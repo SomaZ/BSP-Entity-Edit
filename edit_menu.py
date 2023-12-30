@@ -27,9 +27,11 @@ class Edit():
 
 	def undo(self, *args):
 		self.text.edit_undo()
+		self.text.mark_unset(INSERT)
 
 	def redo(self, *args):
 		self.text.edit_redo()
+		self.text.mark_unset(INSERT)
 
 	def find(self, *args):
 		self.text.focus_set()
