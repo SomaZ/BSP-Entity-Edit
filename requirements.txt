@@ -1,0 +1,2 @@
+pyopengltk==0.0.4
+numpy==1.24.3
