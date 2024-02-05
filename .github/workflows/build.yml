@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v1
+        with:
+          submodules: 'true'
       - name: Install Python
         uses: actions/setup-python@v1
         with:
