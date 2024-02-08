@@ -63,13 +63,28 @@ void main()
 	vec3 sampleVec = u_position_radius.xyz - (ws_position.xyz + (N * 0.125));
 	vec3 L = normalize(sampleVec);
 
-	//float l_depth = getLightDepth(sampleVec, max(u_position_radius.w, 1.1));
-	//float shadow = texture(u_cubemap, vec4(L, l_depth));
-
+	#if defined(POINT_LIGHT)
+	float dist_att = u_position_radius.w / dot(sampleVec, sampleVec);
 	float l_depth = 0.0;
 	float shadow = 0.0;
-	vec2 stepSize = 0.4 / texSize;
 	float weight = 0.0;
+	#if defined(LOWQ)
+	vec2 stepSize = 0.666 / texSize;
+	for (int i = -1; i < 2; i++)
+	{
+		for (int j = -1; j < 2; j++)
+		{
+			vec4 samplePos = textureLod(u_positionmap, uvCoord + vec2(i,j) * stepSize, 0);
+			sampleVec = u_position_radius.xyz - (samplePos.xyz + (N * 0.125));
+			l_depth = getLightDepth(sampleVec, max(u_position_radius.w, 1.1));
+			if (samplePos.a < 1.0)
+				continue;
+			shadow += texture(u_cubemap, vec4(normalize(sampleVec), l_depth));
+			weight += 1.0;
+		}
+	}
+	#else
+	vec2 stepSize = 0.4 / texSize;
 	for (int i = -2; i < 3; i++)
 	{
 		for (int j = -2; j < 3; j++)
@@ -83,16 +98,23 @@ void main()
 			weight += 1.0;
 		}
 	}
+	#endif
 	if (weight > 0.0)
 		shadow /= weight;
 	else
 		shadow = 1.0;
 
-	float dist = distance(ws_position.xyz, u_position_radius.xyz);
-	float dist_att = u_position_radius.w / (dist * dist);
-	
+	vec3 light_color = u_color_radius.rgb;
+	#else
+	vec4 ws_position2 = textureLod(u_positionmap, uvCoord + vec2(texSize.x, 0.0), 0);
+	float radius = min(distance(ws_position2, ws_position), 64.0) * 0.5;
+	float dist_att = u_position_radius.w / (M_PI * (dot(sampleVec, sampleVec) + (radius * radius)));
+	float shadow = 1.0;
+	vec3 light_color = u_color_radius.rgb * vec3(0.5, 0.0, 0.0);
+	#endif
+
 	float NL = max(0.0, dot(N, L));
-	vec3 light = u_color_radius.rgb * NL * dist_att * shadow;
+	vec3 light = light_color * NL * dist_att * shadow;
 
 	out_color.rgb = light;
 	out_color.a = 1.0;
@@ -281,6 +303,22 @@ class Baking_data():
 		GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
 		GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
 
+		self.bounce_texture = GL.glGenTextures(1)
+		GL.glBindTexture(GL.GL_TEXTURE_2D, self.bounce_texture)
+		GL.glTexImage2D(
+			  GL.GL_TEXTURE_2D,
+			  0,
+			  GL.GL_RGBA32F,
+			  BAKE_LIGHTMAP_SIZE,
+			  BAKE_LIGHTMAP_SIZE,
+			  0,
+			  GL.GL_RGBA,
+			  GL.GL_UNSIGNED_BYTE,
+			  ctypes.c_void_p(0))
+		GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+		GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+		GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+
 		self.dialation_texture = GL.glGenTextures(1)
 		GL.glBindTexture(GL.GL_TEXTURE_2D, self.dialation_texture)
 		GL.glTexImage2D(
@@ -334,10 +372,13 @@ class Baking_data():
 		self.position_fbo = FBO(BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, 0, self.position_texture)
 		self.normal_fbo = FBO(BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, 0, self.normal_texture)
 		self.bake_fbo = FBO(BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, 0, self.framebuffer_texture)
+		self.bounce_fbo = FBO(BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, 0, self.bounce_texture)
 		self.dialation_fbo = FBO(BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, 0, self.dialation_texture)
 		self.bake_position_shader = ogl_shader.SHADER(bake_vertex_shader, bake_position_shader)
 		self.bake_normal_shader = ogl_shader.SHADER(bake_vertex_shader, bake_normal_shader)
-		self.bake_lightmap_shader = ogl_shader.SHADER(full_screen_vertex_shader, bake_fragment_shader)
+		self.bake_pointlight_shader = ogl_shader.SHADER(full_screen_vertex_shader, "#define POINT_LIGHT\n" + bake_fragment_shader)
+		self.bake_disklight_shader = ogl_shader.SHADER(full_screen_vertex_shader, bake_fragment_shader)
+
 		self.dialation_shader = ogl_shader.SHADER(full_screen_vertex_shader, dialation_fragment_shader)
 
 		# now all the shadowing setup
@@ -395,6 +436,15 @@ class Baking_data():
 			depth_test=False,
 			depth_write=False
 		)
+		self.states["Bake_bounce"] = OpenGLState(
+			framebuffer = self.bounce_fbo.bind,
+			clear_color = (0.0, 0.0, 0.0, 0.0),
+			blend = True,
+			blend_func=(GL.GL_ONE, GL.GL_ONE),
+			face_culling=False,
+			depth_test=False,
+			depth_write=False
+		)
 		self.states["Depth_Cube"] = OpenGLState(
 			framebuffer = self.bake_fbo.bind, # wrong fbo, handle manually for now
 			clear_color = (0.0, 0.0, 0.0, 0.0),
@@ -408,6 +458,9 @@ class Baking_data():
 		self.cube_shader = ogl_shader.SHADER(cube_vertex_shader, cube_fragment_shader)
 
 	def clear_lightmaps(self):
+		self.state.change_state(self.states["Bake_bounce"])
+		self.state.set_viewport(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE)
+		GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 		self.state.change_state(self.states["Bake"])
 		self.state.set_viewport(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE)
 		GL.glClearColor(0.15, 0.15, 0.15, 1.0)
@@ -437,9 +490,96 @@ class Baking_data():
 				continue
 			GL.glUniformMatrix4fv(shader.uniform_loc["u_model_mat"], 1, GL.GL_FALSE, obj.modelMatrix)
 			obj.draw()
+
+	def bake_lightbounce(self, refresh_func):
+		self.state.change_state(self.states["Bake_bounce"])
+		self.state.set_viewport(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE)
+		GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+
+		self.state.change_state(self.states["Bake"])
+		self.state.set_viewport(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE)
+		GL.glDisable(GL.GL_BLEND)
+		self.state.state.blend = False
+		GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.bake_fbo.bind)
+		GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
+		light_buffer = GL.glReadPixels(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, GL.GL_RGB, GL.GL_FLOAT, None)
+
+		self.state.change_state(self.states["GBuffer_Pos"])
+		GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.position_fbo.bind)
+		GL.glReadBuffer(GL.GL_COLOR_ATTACHMENT0)
+		position_buffer = GL.glReadPixels(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, GL.GL_RGBA, GL.GL_FLOAT, None)
+		
+		GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.bounce_fbo.bind)
+		GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.bounce_fbo.bind)
+		self.state.state.framebuffer = self.bounce_fbo.bind
+		shader = self.bake_disklight_shader
+		GL.glUseProgram(shader.program)
+
+		for row in range(len(light_buffer)):
+			for light, position in zip(light_buffer[row], position_buffer[row]):
+
+				if position[3] < 0.1:
+					continue
+
+				if light[0] <= 0.0 and light[1] <= 0.0 and light[2] <= 0.0:
+					continue
+
+				self.state.change_state(self.states["Bake_bounce"])
+				self.state.set_viewport(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE)
+
+				if light[0] < .0:
+					light[0] = .0
+				if light[1] < .0:
+					light[1] = .0
+				if light[2] < .0:
+					light[2] = .0
+
+				GL.glActiveTexture(GL.GL_TEXTURE0)
+				GL.glBindTexture(GL.GL_TEXTURE_2D, self.position_texture)
+				GL.glUniform1i(shader.uniform_loc["u_positionmap"], 0)
+				GL.glActiveTexture(GL.GL_TEXTURE1)
+				GL.glBindTexture(GL.GL_TEXTURE_2D, self.normal_texture)
+				GL.glUniform1i(shader.uniform_loc["u_normalsmap"], 1)
+
+				GL.glUniform4f(shader.uniform_loc["u_position_radius"], *position[:3], 1.0)
+				GL.glUniform4f(shader.uniform_loc["u_color_radius"], *light[:3], 1.0)
+				GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
+
+				GL.glActiveTexture(GL.GL_TEXTURE0)
+				GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+				GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, 0)
+
+			if refresh_func is not None:
+				refresh_func(True)
+				GL.glFlush()
+				GL.glFinish()
+				GL.glUseProgram(shader.program)
+
+		GL.glFlush()
+		GL.glFinish()		
+
+		self.state.change_state(self.states["Bake_bounce"])
+		self.state.set_viewport(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE)
+		GL.glDisable(GL.GL_BLEND)
+		self.state.state.blend = False
+		for _ in range(8):
+			GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.dialation_fbo.bind)
+			GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.bounce_fbo.bind)
+			GL.glBlitFramebuffer(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, 0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE, GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
+			GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.bounce_fbo.bind)
+			self.state.state.framebuffer = self.bounce_fbo.bind
+
+			GL.glUseProgram(self.dialation_shader.program)
+			GL.glActiveTexture(GL.GL_TEXTURE0)
+			GL.glBindTexture(GL.GL_TEXTURE_2D, self.dialation_texture)
+			GL.glUniform1i(self.dialation_shader.uniform_loc["u_lightmap"], 0)
+			GL.glDrawArrays(GL.GL_TRIANGLES, 0, 3)
+			GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
 	
 	def bake_lightmaps(self, objects, lights, bake_settings, refresh_func):
 		self.bake_gbuffer(objects)
+
+		print("Number of baking lights:", len(lights))
 
 		self.state.change_state(self.states["Bake"])
 		self.state.set_viewport(0, 0, BAKE_LIGHTMAP_SIZE, BAKE_LIGHTMAP_SIZE)
@@ -475,7 +615,7 @@ class Baking_data():
 			GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
 			GL.glBindTexture(GL.GL_TEXTURE_CUBE_MAP, self.depth_cubemap)
 
-			shader = self.bake_lightmap_shader
+			shader = self.bake_pointlight_shader
 			GL.glUseProgram(shader.program)
 			GL.glUniform4f(shader.uniform_loc["u_position_radius"], *light.origin, float(light.radius * bake_settings.point_scale))
 			GL.glUniform4f(shader.uniform_loc["u_color_radius"], *light.color, float(light.radius * bake_settings.point_scale))

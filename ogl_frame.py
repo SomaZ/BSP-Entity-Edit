@@ -178,8 +178,13 @@ class AppOgl(OpenGLFrame):
 				GL.glUniform1i(shader.uniform_loc["u_mode"], SHADERMODE[self.mode])
 			if (shader.uniform_loc["u_lightmap"] != -1):
 				GL.glUniform1i(shader.uniform_loc["u_lightmap"], 0)
+				GL.glActiveTexture(GL.GL_TEXTURE0)
 				GL.glBindTexture(GL.GL_TEXTURE_2D, self.bake_data.framebuffer_texture)
-			
+			if (shader.uniform_loc["u_bouncemap"] != -1):
+				GL.glUniform1i(shader.uniform_loc["u_bouncemap"], 1)
+				GL.glActiveTexture(GL.GL_TEXTURE1)
+				GL.glBindTexture(GL.GL_TEXTURE_2D, self.bake_data.bounce_texture)
+
 			if obj.selected and not self.is_picking:
 				if obj.mesh.blend:
 					mix_factor = 1.0
@@ -216,6 +221,11 @@ class AppOgl(OpenGLFrame):
 			self.opengl_lights,
 			self.lighting_frame.get_bake_settings(),
 			self.redraw)
+		
+	def update_lightmap_bounce(self, test = None):
+		self.bake_data.bake_lightbounce(
+			self.redraw
+		)
 		
 	def clear_lightmap_bake(self):
 		self.bake_data.clear_lightmaps()
@@ -419,12 +429,7 @@ class AppOgl(OpenGLFrame):
 				new_light.color = [1.0, 1.0, 1.0]
 			if "scale" in bsp_object.custom_parameters:
 				new_light.radius *= float(bsp_object.custom_parameters["scale"])
-			if new_light.radius < 0.0:
-				new_light.radius = -new_light.radius
-				new_light.color[0] *= -1.0
-				new_light.color[1] *= -1.0
-				new_light.color[2] *= -1.0
-				print(new_light.__dict__)
+
 			self.opengl_lights.append(new_light)
 		
 		if mesh.blend is None:

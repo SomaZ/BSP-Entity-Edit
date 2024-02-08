@@ -102,6 +102,13 @@ class Lighting_frame():
         )
         self.btn_bake.pack(fill=X)
 
+        self.btn_bounce = Button(
+            frame,
+            text = "Add light bounce",
+            height = 1
+        )
+        self.btn_bounce.pack(fill=X)
+
         self.btn_pack = Button(
             frame,
             text = "Pack Lighting",

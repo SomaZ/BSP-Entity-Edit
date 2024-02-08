@@ -177,11 +177,16 @@ def main():
 		bfi.reload_entities()
 		model_frame.update_lightmap_bake()
 
+	def update_lightmap_bounce():
+		bfi.reload_entities()
+		model_frame.update_lightmap_bounce()
+
 	def pack_lightmap_bake():
 		messagebox.showinfo(title="Sorry", message="This feature is not implemented yet. Stay tuned.")
 
 	data_frame_lighting.btn_bake.configure(command=update_lightmap_bake)
 	data_frame_lighting.btn_pack.configure(command=pack_lightmap_bake)
+	data_frame_lighting.btn_bounce.configure(command=update_lightmap_bounce)
 	
 	# running the whole program
 	root.mainloop()

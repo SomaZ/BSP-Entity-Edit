@@ -18,17 +18,20 @@ UNIFORM_LIST = [
 	"u_positionmap",
 	"u_normalsmap", # for stored vertex normals
 	"u_lightmap",
-	"u_cubemap"
+	"u_cubemap",
+	"u_bouncemap"
 ]
 
 SAMPLER_LIST = {
 	"u_positionmap": 0,
 	"u_normalsmap": 1,
 	"u_lightmap": 0,
-	"u_cubemap":2
+	"u_cubemap": 2,
+	"u_bouncemap": 1
 }
 
 SHADER_HEADER = """#version 130
+#define M_PI float(3.1415926535)
 """
 
 vertex_shader = """
@@ -95,6 +98,7 @@ in vec3 v_normal;
 in vec4 v_tcs;
 uniform vec4 u_color;
 uniform sampler2D u_lightmap;
+uniform sampler2D u_bouncemap;
 uniform float u_gamma;
 uniform float u_compensate;
 uniform float u_obb;
@@ -105,6 +109,7 @@ out vec4 out_color;
 void main()
 {
 	vec3 color = max(texture(u_lightmap, v_tcs.zw).rgb * u_lightScale, vec3(0.0));
+	color += max(texture(u_bouncemap, v_tcs.zw).rgb * u_lightScale, vec3(0.0));
 
 	color = pow(color, vec3(1.0 / u_gamma));
 
