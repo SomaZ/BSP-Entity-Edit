@@ -4,7 +4,7 @@ from tkinter.filedialog import *
 from tkinter.messagebox import *
 
 from pyidtech3lib import BSP_READER as BSP
-from pyidtech3lib import Q3VFS, Import_Settings, Surface_Type, Preset
+from pyidtech3lib import Q3VFS, Import_Settings, Surface_Type, Preset, Vert_lit_handling
 from copy import deepcopy
 
 bsp_file_types = [("BSP files","*.bsp"), ("Entity files","*.ent")]
@@ -123,7 +123,8 @@ class File():
 				file=self.filename,
 				surface_types=Surface_Type.ALL,
 				subdivisions=0,
-				preset=Preset.EDITING.value
+				preset=Preset.EDITING.value,
+				vert_lit_handling = Vert_lit_handling.KEEP
 			)
 
 			bsp = BSP(vfs, import_settings)
