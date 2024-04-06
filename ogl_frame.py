@@ -546,7 +546,7 @@ class AppOgl(OpenGLFrame):
 					mesh.vertex_data_layers["BSP_FOG_INDEX"].get_indexed(),
 					)
 			else:
-				vertex_info = [(-2, -2, -2, -2) for _ in range(len(mesh.indices))]
+				vertex_info = [(-2, -2, -2, -2) for _ in range(len(vcolors))]
 
 			if "LightmapUV" in mesh.uv_layers:
 				lightmap_uvs = mesh.uv_layers["LightmapUV"].get_indexed()
