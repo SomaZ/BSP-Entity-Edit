@@ -53,7 +53,14 @@ class Data_frame():
     def update_data_ui(self, data):
         for variable, entry in zip(self.variables, self.entries):
             self.entries[entry].delete(0, END)
-            self.entries[entry].insert(0, getattr(data, variable.att_name))
+            if variable.num_components == 1:
+                self.entries[entry].insert(0, getattr(data, variable.att_name))
+            else:
+                array_data = getattr(data, variable.att_name)
+                text = ""
+                for i in range(variable.num_components):
+                    text += str(array_data[i]) + " "
+                self.entries[entry].insert(0, text)
 
     def update_data_bsp(self, data):
         for variable, entry in zip(self.variables, self.entries):
@@ -61,7 +68,11 @@ class Data_frame():
             if var_t is str:
                 setattr(data, variable.att_name, bytes(self.entries[entry].get(), "latin-1"))
                 continue
-            setattr(data, variable.att_name, var_t(self.entries[entry].get()))
+            if variable.num_components == 1:
+                setattr(data, variable.att_name, var_t(self.entries[entry].get()))
+            else:
+                array_data = self.entries[entry].get().split(" ", variable.num_components-1)
+                setattr(data, variable.att_name, tuple(map(var_t, array_data)))
 
 if __name__ == "__main__":
 	print("Please run 'main.py'")
