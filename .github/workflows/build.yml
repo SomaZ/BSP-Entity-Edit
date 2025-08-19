@@ -6,49 +6,93 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
         with:
           submodules: 'true'
       - name: Install Python
         uses: actions/setup-python@v1
         with:
-          python-version: '3.8'
+          python-version: '3.12'
           architecture: 'x64'
       - name: Install requirements
         run: |
           pip install -r requirements.txt
           pip install pyinstaller
+      - name: Install UPX
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          install-only: true
       - name: Run PyInstaller
         run: |
           python -m PyInstaller BSP_Edit.spec
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
           name: Windows BSP Edit
           path: 'dist/BSP Edit.exe'
 
-      - name: create release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          tag_name: "latest"
-          release_name: "latest"
-          overwrite: true
-          body: |
-            Latest Build
-          draft: false
+          submodules: 'true'
+      - name: Install Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+      - name: Install requirements
+        run: |
+          sudo apt-get -qq update
+          sudo apt-get install python3-tk
+          pip install -r requirements.txt
+          pip install pyinstaller
+      - name: Run PyInstaller
+        run: |
+          python -m PyInstaller BSP_Edit.spec
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Linux BSP Edit
+          path: 'dist/BSP Edit'
+          
+  create-release:
+    runs-on: ubuntu-24.04
+    needs: [build-windows, build-linux]
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create release
+        id: create_release
+        uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
           prerelease: false
-      - name: Upload Release Asset
-        id: upload-release-asset
+          title: "Latest Build"
+    
+      - name: Upload Release Asset Windows
+        id: upload-release-asset-windows
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{steps.create_release.outputs.upload_url}}
-          asset_path: 'dist/BSP Edit.exe'
-          asset_name: BSP-Edit-Windows-amd64.exe
+          asset_path: 'Windows BSP Edit/BSP Edit.exe'
+          asset_name: BSP-Edit-Windows-x64.exe
+          asset_content_type: application/zip
+          
+      - name: Upload Release Asset Ubuntu
+        id: upload-release-asset-ubuntu
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{steps.create_release.outputs.upload_url}}
+          asset_path: 'Linux BSP Edit/BSP Edit'
+          asset_name: BSP-Edit-Ubuntu-x64
           asset_content_type: application/zip
